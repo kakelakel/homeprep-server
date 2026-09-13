@@ -4,11 +4,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from homeprep_server.api.auth import require_user
 from homeprep_server.database import get_session
 from homeprep_server.schemas import InventoryCreate, InventoryRead, InventoryUpdate
 from homeprep_server.services import ConflictError, InventoryService, NotFoundError
 
-router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+router = APIRouter(
+    prefix="/api/v1/inventory",
+    tags=["inventory"],
+    dependencies=[Depends(require_user)],
+)
 SessionDep = Annotated[Session, Depends(get_session)]
 ExpectedRevision = Annotated[int, Query(ge=1)]
 
