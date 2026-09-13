@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from homeprep_server.core.backup import restore_backup, validate_backup
 from homeprep_server.core.config import settings
 from homeprep_server.database import get_engine, reset_database_state
 from homeprep_server.main import app
@@ -36,7 +37,7 @@ def client(tmp_path) -> Generator[TestClient, None, None]:
     reset_database_state()
 
 
-def test_backup_contains_manifest_and_consistent_database(client: TestClient, tmp_path) -> None:
+def _create_inventory(client: TestClient) -> tuple[str, dict]:
     household = client.post("/api/v1/households", json={"name": "Backup household"})
     assert household.status_code == 201
     household_id = household.json()["id"]
@@ -52,6 +53,11 @@ def test_backup_contains_manifest_and_consistent_database(client: TestClient, tm
         },
     )
     assert inventory.status_code == 201
+    return household_id, inventory.json()
+
+
+def test_backup_contains_manifest_and_consistent_database(client: TestClient, tmp_path) -> None:
+    household_id, _inventory = _create_inventory(client)
 
     created = client.post("/api/v1/backups")
     assert created.status_code == 201
@@ -62,6 +68,12 @@ def test_backup_contains_manifest_and_consistent_database(client: TestClient, tm
     archive_path = Path(backup["path"])
     assert archive_path.exists()
     assert archive_path.parent == tmp_path / "backups"
+
+    validation = validate_backup(archive_path)
+    assert validation.valid is True
+    assert validation.format_version == 1
+    assert validation.household_id == household_id
+    assert validation.household_name == "Backup household"
 
     extracted_db = tmp_path / "restored-check.db"
     with zipfile.ZipFile(archive_path, "r") as archive:
@@ -81,3 +93,49 @@ def test_backup_contains_manifest_and_consistent_database(client: TestClient, tm
     listing = client.get("/api/v1/backups")
     assert listing.status_code == 200
     assert listing.json()[0]["filename"] == backup["filename"]
+
+
+def test_restore_recovers_previous_data_and_creates_safety_backup(
+    client: TestClient,
+    tmp_path,
+) -> None:
+    household_id, inventory = _create_inventory(client)
+    original_backup = client.post("/api/v1/backups")
+    assert original_backup.status_code == 201
+    archive_path = Path(original_backup.json()["path"])
+
+    changed = client.patch(
+        f"/api/v1/inventory/{inventory['id']}",
+        json={
+            "name": "Changed after backup",
+            "quantity": 1,
+            "expected_revision": inventory["revision"],
+        },
+    )
+    assert changed.status_code == 200
+    assert changed.json()["name"] == "Changed after backup"
+
+    validation = restore_backup(archive_path, safety_backup=True)
+    assert validation.valid is True
+    assert validation.household_id == household_id
+
+    database_path = tmp_path / "homeprep-backup-test.db"
+    with sqlite3.connect(database_path) as connection:
+        restored = connection.execute(
+            "SELECT name, quantity, revision FROM inventory_items WHERE id = ?",
+            (inventory["id"],),
+        ).fetchone()
+    assert restored == ("Emergency water", 30.0, inventory["revision"])
+
+    safety_dir = tmp_path / "backups" / "pre-restore"
+    safety_archives = list(safety_dir.glob("homeprep-backup-*.zip"))
+    assert len(safety_archives) == 1
+    with zipfile.ZipFile(safety_archives[0], "r") as archive:
+        safety_db = tmp_path / "pre-restore-check.db"
+        safety_db.write_bytes(archive.read("homeprep.db"))
+    with sqlite3.connect(safety_db) as connection:
+        pre_restore = connection.execute(
+            "SELECT name, quantity FROM inventory_items WHERE id = ?",
+            (inventory["id"],),
+        ).fetchone()
+    assert pre_restore == ("Changed after backup", 1.0)
