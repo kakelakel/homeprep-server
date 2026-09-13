@@ -1,20 +1,23 @@
-"""Minimal native Windows Service host for HomePrep Server.
+"""Native Windows Service support for HomePrep Server.
 
-This module deliberately uses the Windows Service Control Manager API through
-ctypes so the packaged HomePrep executable does not need an additional service
-wrapper or pywin32 runtime dependency.
+The service host uses the Windows Service Control Manager API through ctypes so
+HomePrep does not require an additional wrapper or pywin32 dependency. Small
+management helpers use the built-in sc.exe tool for install/update/start/stop.
 """
 
 from __future__ import annotations
 
 import ctypes
 import os
+import subprocess
 import threading
 from collections.abc import Callable
 from ctypes import wintypes
+from pathlib import Path
 
 SERVICE_NAME = "HomePrepServer"
 SERVICE_DISPLAY_NAME = "HomePrep Server"
+SERVICE_DESCRIPTION = "Self-hosted HomePrep preparedness server"
 
 SERVICE_WIN32_OWN_PROCESS = 0x00000010
 SERVICE_START_PENDING = 0x00000002
@@ -62,6 +65,60 @@ class SERVICE_TABLE_ENTRY(ctypes.Structure):
 
 
 ServiceWorkload = Callable[[threading.Event, Callable[[], None]], None]
+
+
+def _run_sc(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+    if os.name != "nt":
+        raise RuntimeError("Windows service management is only available on Windows")
+    creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return subprocess.run(
+        ["sc.exe", *args],
+        check=check,
+        capture_output=True,
+        text=True,
+        creationflags=creationflags,
+    )
+
+
+def service_exists() -> bool:
+    return _run_sc("query", SERVICE_NAME, check=False).returncode == 0
+
+
+def install_windows_service(executable: str | Path) -> None:
+    """Create or update the HomePrep Windows service."""
+    executable_path = str(Path(executable).resolve())
+    binary_path = f'"{executable_path}" --service'
+    common = [
+        SERVICE_NAME,
+        "binPath=",
+        binary_path,
+        "start=",
+        "delayed-auto",
+        "DisplayName=",
+        SERVICE_DISPLAY_NAME,
+    ]
+    if service_exists():
+        _run_sc("stop", SERVICE_NAME, check=False)
+        _run_sc("config", *common)
+    else:
+        _run_sc("create", *common)
+    _run_sc("description", SERVICE_NAME, SERVICE_DESCRIPTION)
+
+
+def start_windows_service() -> None:
+    result = _run_sc("start", SERVICE_NAME, check=False)
+    # 1056 means the service is already running.
+    if result.returncode != 0 and "1056" not in (result.stdout + result.stderr):
+        raise RuntimeError(result.stdout or result.stderr or "Unable to start HomePrep service")
+
+
+def stop_windows_service() -> None:
+    _run_sc("stop", SERVICE_NAME, check=False)
+
+
+def remove_windows_service() -> None:
+    stop_windows_service()
+    _run_sc("delete", SERVICE_NAME, check=False)
 
 
 class WindowsServiceHost:
