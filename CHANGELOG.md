@@ -43,14 +43,14 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - First local authentication layer with one-time owner setup, login, logout and current-user API.
 - Password hashing using Argon2 through `pwdlib`; plaintext passwords are never stored.
 - Opaque random Web sessions stored server-side as SHA-256 token hashes and delivered in HttpOnly SameSite cookies.
-- Household and Inventory APIs now require an authenticated session, while health/readiness remain public.
+- Household and Inventory APIs now require authenticated access, while health/readiness remain public.
 - First-run Web setup creates the local administrator before any preparedness data is exposed.
 - Authentication lifecycle tests covering setup, protected endpoints, logout, failed login and successful re-login.
 - Native Windows packaging with a self-contained executable and Inno Setup installer.
 - Native Windows Service mode so HomePrep Server starts automatically in the background without requiring an interactive user session.
 - HomePrep Server Manager for Windows with service status, Web/API reachability, start/stop/restart controls, data-folder access and network settings.
 - Standalone `config.json` support for user-managed bind address and port while explicit `HOMEPREP_*` environment variables retain precedence.
-- Installer shortcuts now resolve the configured port dynamically through HomePrep Server Manager instead of assuming port 8080.
+- Installer shortcuts resolve the configured port dynamically through HomePrep Server Manager instead of assuming port 8080.
 - Regression coverage for the single-household server lifecycle.
 - Stable API error envelope with machine-readable error codes and structured validation details.
 - HomePrep Web Inventory editing for name, quantity, unit and category using revision-safe `PATCH` requests.
@@ -59,24 +59,37 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Owner-managed client listing, creation and revocation endpoints.
 - One-time client pairing requests with a 10-minute expiry and single-use exchange into a permanent client credential.
 - Pairing flow designed for Home Assistant first and reusable by future QR-based Android onboarding.
-- Client-credential tests covering full-access Home Assistant behavior, read-only clients and credential revocation.
+- Authenticated `GET /api/v1/context` endpoint returning server identity/version, client principal/role and active Household for post-pairing client verification.
+- Client-credential tests covering full-access Home Assistant behavior, read-only clients, credential revocation and post-pairing context discovery.
+- Portable backup format v1 containing `manifest.json` and a consistent SQLite snapshot created through SQLite's backup API.
+- Backup manifest metadata including format version, Server version/identity, migration version, timestamp, Household metadata and included components.
+- Owner-only backup administration API for creating and listing native Server backups.
+- Backup archive validation including format checks and SQLite `PRAGMA integrity_check`.
+- Offline restore primitive with automatic pre-restore safety backup and database replacement only after validation.
+- Launcher commands for `--validate-backup` and `--restore-backup`.
+- Integration tests that inspect backup contents and prove a backup → mutate → restore round trip, including the pre-restore safety snapshot.
+- Portable backup scheduler with `off`, `daily` and `weekly` cadence plus configurable file retention.
+- Windows Server Manager backup controls for **Back up now**, backup-folder access, schedule, retention and validated restore.
+- Windows Server Manager **Check for updates** using the latest published GitHub Release as the stable update channel.
 
 ### Changed
-- README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
+- README and roadmap treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
 - HomePrep Server is explicitly defined as a capability layer rather than a replacement for Home Assistant standalone operation.
-- Docker builds now use a Web build stage and ship one self-contained HomePrep Server image.
-- Native development now defaults to a relative `data/` directory; Docker and appliance deployments can continue to override it with `HOMEPREP_DATA_DIR=/data`.
-- Windows standalone installs keep persistent data and configuration under `%ProgramData%\HomePrep` and keep application binaries under Program Files.
-- The MVP server now enforces one active household per installation; attempts to create another return `409 Conflict`.
-- HomePrep Web now reflects the dedicated single-household model instead of exposing a household selector or an "add another household" flow.
-- HomePrep Web now reloads Inventory after failed revision-sensitive edits/deletes so stale clients do not continue showing an outdated resource version.
-- Household and Inventory authorization now accepts either an authenticated Web user or a valid non-revoked client credential; write endpoints reject read-only clients.
-- Backup/restore requirements now explicitly include Server Manager scheduling/retention UX and a versioned portable migration format across supported deployments.
-- Windows standalone update handling is now a product requirement: Server Manager should expose update checking and a safe installer handoff before optional unattended auto-update is enabled.
+- Docker builds use a Web build stage and ship one self-contained HomePrep Server image.
+- Native development defaults to a relative `data/` directory; Docker and appliance deployments can continue to override it with `HOMEPREP_DATA_DIR=/data`.
+- Windows standalone installs keep persistent data and configuration under `%ProgramData%\HomePrep` and application binaries under Program Files.
+- The MVP server enforces one active household per installation; attempts to create another return `409 Conflict`.
+- HomePrep Web reflects the dedicated single-household model instead of exposing a household selector or an "add another household" flow.
+- HomePrep Web reloads Inventory after failed revision-sensitive edits/deletes so stale clients do not continue showing an outdated resource version.
+- Household and Inventory authorization accepts either an authenticated Web user or a valid non-revoked client credential; write endpoints reject read-only clients.
+- Backup creation, validation, restore and scheduling live in Server core rather than a Windows-only implementation; Server Manager is an administration surface over the shared subsystem.
+- Backup/restore requirements explicitly include a versioned portable migration format across supported deployments.
+- Windows Service installation/startup waits for Service Control Manager registration before attempting start, avoiding registration-race failures on slower systems.
+- Windows update handling now has a user-facing check path; automatic installer execution remains intentionally disabled until package authenticity, pre-upgrade backup and recovery behavior are fully proven.
 
 ### Planned next
-- Complete and validate the Home Assistant-oriented pairing UX around the new one-time pairing API.
-- Add richer diagnostics around server/client state.
-- Prove native backup/restore for the SQLite-based Server and expose backup administration in Server Manager.
-- Implement safe Windows update checking/installer handoff and later evaluate opt-in automatic updates.
-- Begin the explicit Home Assistant import/bridge path after pairing and backup foundations are proven.
+- Finish real-Windows validation of the new Manager backup/schedule/restore/update controls.
+- Add richer backup status/failure diagnostics rather than silently swallowing scheduler failures.
+- Define signed release-asset/update handoff and pre-upgrade backup behavior before opt-in automatic updates.
+- Begin the explicit Home Assistant import/bridge path now that pairing and native recovery foundations exist.
+- Prove create/update/delete/tombstone round trips between Home Assistant, Server and Web before calling synchronization stable.
