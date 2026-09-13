@@ -1,12 +1,20 @@
 from datetime import date, datetime
-from typing import Literal
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-ClientType = Literal["home_assistant", "android", "web", "other"]
-ClientAccessRole = Literal["full_access", "read_only"]
+class ClientType(StrEnum):
+    HOME_ASSISTANT = "home_assistant"
+    ANDROID = "android"
+    WEB = "web"
+    OTHER = "other"
+
+
+class ClientAccessRole(StrEnum):
+    FULL_ACCESS = "full_access"
+    READ_ONLY = "read_only"
 
 
 class AuthSetup(BaseModel):
@@ -36,8 +44,8 @@ class AuthStatus(BaseModel):
 
 class ClientCredentialCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    client_type: ClientType = "other"
-    access_role: ClientAccessRole = "full_access"
+    client_type: ClientType = ClientType.OTHER
+    access_role: ClientAccessRole = ClientAccessRole.FULL_ACCESS
 
 
 class ClientCredentialRead(BaseModel):
@@ -58,8 +66,8 @@ class ClientCredentialCreated(ClientCredentialRead):
 
 class ClientPairingCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    client_type: ClientType = "other"
-    access_role: ClientAccessRole = "full_access"
+    client_type: ClientType = ClientType.OTHER
+    access_role: ClientAccessRole = ClientAccessRole.FULL_ACCESS
 
 
 class ClientPairingCreated(BaseModel):
