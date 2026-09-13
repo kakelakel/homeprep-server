@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -8,6 +9,8 @@ from homeprep_server.schemas import InventoryCreate, InventoryRead, InventoryUpd
 from homeprep_server.services import ConflictError, InventoryService, NotFoundError
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+SessionDep = Annotated[Session, Depends(get_session)]
+ExpectedRevision = Annotated[int, Query(ge=1)]
 
 
 def _translate_error(exc: Exception) -> HTTPException:
@@ -21,7 +24,7 @@ def _translate_error(exc: Exception) -> HTTPException:
 @router.post("", response_model=InventoryRead, status_code=status.HTTP_201_CREATED)
 def create_inventory_item(
     payload: InventoryCreate,
-    session: Session = Depends(get_session),
+    session: SessionDep,
 ) -> InventoryRead:
     try:
         return InventoryService(session).create(payload)
@@ -31,8 +34,8 @@ def create_inventory_item(
 
 @router.get("", response_model=list[InventoryRead])
 def list_inventory(
-    household_id: UUID = Query(...),
-    session: Session = Depends(get_session),
+    household_id: UUID,
+    session: SessionDep,
 ) -> list[InventoryRead]:
     try:
         return list(InventoryService(session).list_for_household(household_id))
@@ -43,7 +46,7 @@ def list_inventory(
 @router.get("/{item_id}", response_model=InventoryRead)
 def get_inventory_item(
     item_id: UUID,
-    session: Session = Depends(get_session),
+    session: SessionDep,
 ) -> InventoryRead:
     try:
         return InventoryService(session).get(item_id)
@@ -55,7 +58,7 @@ def get_inventory_item(
 def update_inventory_item(
     item_id: UUID,
     payload: InventoryUpdate,
-    session: Session = Depends(get_session),
+    session: SessionDep,
 ) -> InventoryRead:
     try:
         return InventoryService(session).update(item_id, payload)
@@ -66,8 +69,8 @@ def update_inventory_item(
 @router.delete("/{item_id}", response_model=InventoryRead)
 def delete_inventory_item(
     item_id: UUID,
-    expected_revision: int = Query(..., ge=1),
-    session: Session = Depends(get_session),
+    expected_revision: ExpectedRevision,
+    session: SessionDep,
 ) -> InventoryRead:
     try:
         return InventoryService(session).delete(item_id, expected_revision)
