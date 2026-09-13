@@ -103,6 +103,14 @@ class ClientContext(BaseModel):
     household: ClientContextHousehold | None
 
 
+class BackupRead(BaseModel):
+    filename: str
+    path: str
+    created_at: datetime
+    size_bytes: int
+    format_version: int
+
+
 class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
