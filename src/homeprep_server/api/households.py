@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,12 +9,13 @@ from homeprep_server.schemas import HouseholdCreate, HouseholdRead
 from homeprep_server.services import HouseholdService, NotFoundError
 
 router = APIRouter(prefix="/api/v1/households", tags=["households"])
+SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.post("", response_model=HouseholdRead, status_code=status.HTTP_201_CREATED)
 def create_household(
     payload: HouseholdCreate,
-    session: Session = Depends(get_session),
+    session: SessionDep,
 ) -> HouseholdRead:
     return HouseholdService(session).create(payload)
 
@@ -21,7 +23,7 @@ def create_household(
 @router.get("/{household_id}", response_model=HouseholdRead)
 def get_household(
     household_id: UUID,
-    session: Session = Depends(get_session),
+    session: SessionDep,
 ) -> HouseholdRead:
     try:
         return HouseholdService(session).get(household_id)
