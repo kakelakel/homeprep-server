@@ -73,7 +73,10 @@ def _service_action(action: str) -> bool:
 
 def _server_reachable(port: int) -> bool:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/readyz", timeout=1.2) as response:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/readyz",
+            timeout=1.2,
+        ) as response:
             return response.status == 200
     except (OSError, urllib.error.URLError):
         return False
@@ -115,7 +118,11 @@ class ManagerApp(tk.Tk):
         root = ttk.Frame(self, padding=22)
         root.pack(fill="both", expand=True)
 
-        ttk.Label(root, text="HomePrep Server Manager", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        ttk.Label(
+            root,
+            text="HomePrep Server Manager",
+            font=("Segoe UI", 18, "bold"),
+        ).pack(anchor="w")
         ttk.Label(
             root,
             text="Manage the local HomePrep Server service and standalone settings.",
@@ -125,30 +132,105 @@ class ManagerApp(tk.Tk):
         status.pack(fill="x")
         grid = ttk.Frame(status)
         grid.pack(fill="x")
-        ttk.Label(grid, text="Service status:").grid(row=0, column=0, sticky="w", padx=(0, 18), pady=4)
-        ttk.Label(grid, textvariable=self.status_var, font=("Segoe UI", 10, "bold")).grid(row=0, column=1, sticky="w", pady=4)
-        ttk.Label(grid, text="Web/API:").grid(row=1, column=0, sticky="w", padx=(0, 18), pady=4)
-        ttk.Label(grid, textvariable=self.reachable_var).grid(row=1, column=1, sticky="w", pady=4)
-        ttk.Label(grid, text="Version:").grid(row=2, column=0, sticky="w", padx=(0, 18), pady=4)
+        ttk.Label(grid, text="Service status:").grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=(0, 18),
+            pady=4,
+        )
+        ttk.Label(
+            grid,
+            textvariable=self.status_var,
+            font=("Segoe UI", 10, "bold"),
+        ).grid(row=0, column=1, sticky="w", pady=4)
+        ttk.Label(grid, text="Web/API:").grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=(0, 18),
+            pady=4,
+        )
+        ttk.Label(grid, textvariable=self.reachable_var).grid(
+            row=1,
+            column=1,
+            sticky="w",
+            pady=4,
+        )
+        ttk.Label(grid, text="Version:").grid(
+            row=2,
+            column=0,
+            sticky="w",
+            padx=(0, 18),
+            pady=4,
+        )
         ttk.Label(grid, text=__version__).grid(row=2, column=1, sticky="w", pady=4)
-        ttk.Label(grid, text="Data folder:").grid(row=3, column=0, sticky="w", padx=(0, 18), pady=4)
-        ttk.Label(grid, text=str(self.data_dir)).grid(row=3, column=1, sticky="w", pady=4)
+        ttk.Label(grid, text="Data folder:").grid(
+            row=3,
+            column=0,
+            sticky="w",
+            padx=(0, 18),
+            pady=4,
+        )
+        ttk.Label(grid, text=str(self.data_dir)).grid(
+            row=3,
+            column=1,
+            sticky="w",
+            pady=4,
+        )
 
         buttons = ttk.Frame(status)
         buttons.pack(fill="x", pady=(12, 0))
-        ttk.Button(buttons, text="Open HomePrep", command=self.open_homeprep).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Start", command=lambda: self.do_service_action("start")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Stop", command=lambda: self.do_service_action("stop")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Restart", command=lambda: self.do_service_action("restart")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Refresh", command=self.refresh_status).pack(side="right")
+        ttk.Button(
+            buttons,
+            text="Open HomePrep",
+            command=self.open_homeprep,
+        ).pack(side="left", padx=(0, 8))
+        ttk.Button(
+            buttons,
+            text="Start",
+            command=lambda: self.do_service_action("start"),
+        ).pack(side="left", padx=4)
+        ttk.Button(
+            buttons,
+            text="Stop",
+            command=lambda: self.do_service_action("stop"),
+        ).pack(side="left", padx=4)
+        ttk.Button(
+            buttons,
+            text="Restart",
+            command=lambda: self.do_service_action("restart"),
+        ).pack(side="left", padx=4)
+        ttk.Button(
+            buttons,
+            text="Refresh",
+            command=self.refresh_status,
+        ).pack(side="right")
 
         settings = ttk.LabelFrame(root, text="Network settings", padding=14)
         settings.pack(fill="x", pady=(16, 0))
         form = ttk.Frame(settings)
         form.pack(fill="x")
-        ttk.Label(form, text="Port").grid(row=0, column=0, sticky="w", padx=(0, 14), pady=6)
-        ttk.Entry(form, textvariable=self.port_var, width=12).grid(row=0, column=1, sticky="w", pady=6)
-        ttk.Label(form, text="Access").grid(row=1, column=0, sticky="w", padx=(0, 14), pady=6)
+        ttk.Label(form, text="Port").grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=(0, 14),
+            pady=6,
+        )
+        ttk.Entry(form, textvariable=self.port_var, width=12).grid(
+            row=0,
+            column=1,
+            sticky="w",
+            pady=6,
+        )
+        ttk.Label(form, text="Access").grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=(0, 14),
+            pady=6,
+        )
         access = ttk.Combobox(
             form,
             textvariable=self.access_var,
@@ -159,15 +241,30 @@ class ManagerApp(tk.Tk):
         access.grid(row=1, column=1, sticky="w", pady=6)
         ttk.Label(
             form,
-            text="LAN exposes HomePrep on this computer's network interfaces. Authentication still applies.",
+            text=(
+                "LAN exposes HomePrep on this computer's network interfaces. "
+                "Authentication still applies."
+            ),
             wraplength=390,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 8))
-        ttk.Button(settings, text="Save settings and restart", command=self.save_settings).pack(anchor="w")
+        ttk.Button(
+            settings,
+            text="Save settings and restart",
+            command=self.save_settings,
+        ).pack(anchor="w")
 
         tools = ttk.Frame(root)
         tools.pack(fill="x", pady=(16, 0))
-        ttk.Button(tools, text="Open data folder", command=lambda: _open_folder(self.data_dir)).pack(side="left")
-        ttk.Button(tools, text="Open Windows Services", command=self.open_services).pack(side="left", padx=8)
+        ttk.Button(
+            tools,
+            text="Open data folder",
+            command=lambda: _open_folder(self.data_dir),
+        ).pack(side="left")
+        ttk.Button(
+            tools,
+            text="Open Windows Services",
+            command=self.open_services,
+        ).pack(side="left", padx=8)
 
     def current_port(self) -> int:
         try:
@@ -190,7 +287,10 @@ class ManagerApp(tk.Tk):
         if not _service_action(action):
             messagebox.showerror(
                 "HomePrep",
-                f"Could not {action} HomePrep Server. Administrator permission may have been cancelled.",
+                (
+                    f"Could not {action} HomePrep Server. "
+                    "Administrator permission may have been cancelled."
+                ),
             )
             return
         self.after(900, self.refresh_status)
@@ -210,7 +310,10 @@ class ManagerApp(tk.Tk):
         if not _service_action("restart"):
             messagebox.showwarning(
                 "Settings saved",
-                "Settings were saved, but the server could not be restarted. Restart it from the manager when ready.",
+                (
+                    "Settings were saved, but the server could not be restarted. "
+                    "Restart it from the manager when ready."
+                ),
             )
             return
         self.after(900, self.refresh_status)
