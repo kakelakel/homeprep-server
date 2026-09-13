@@ -6,11 +6,25 @@ HomePrep Server is the self-hosted data and API layer for the HomePrep ecosystem
 
 HomePrep Server is currently in the architecture/bootstrap phase and is not yet ready for production use.
 
+## A permanent data-ownership commitment
+
+Preparedness data can describe a household's supplies, equipment, storage locations, emergency plans, maintenance status and weak points. HomePrep therefore treats infrastructure ownership as part of the security model itself.
+
+**Core private HomePrep data will not require centralized HomePrep-operated storage.**
+
+Self-hosted operation is not a temporary phase on the way to a mandatory cloud service. It is a permanent architectural commitment of the project.
+
+Future optional managed services may exist, but they must remain optional and must not remove the user's ability to run the core HomePrep platform on infrastructure they control.
+
+> **Convenience may be centralized. Ownership must not be.**
+
+Read the full commitment in [DATA-OWNERSHIP.md](DATA-OWNERSHIP.md).
+
 ## Why HomePrep Server exists
 
-Preparedness data can reveal a great deal about a household: what supplies exist, where important equipment is located, which plans are prepared and where gaps remain. HomePrep therefore treats user control of data as a product principle rather than an optional privacy feature.
+HomePrep Server provides a common self-hosted source of truth without requiring a central HomePrep account or a HomePrep-operated cloud database.
 
-The server is intended to provide a common self-hosted source of truth without requiring a central HomePrep account or a HomePrep-operated cloud database.
+The goal is to make multi-client use possible while preserving the same control users expect from a local-first Home Assistant installation.
 
 ## Planned clients
 
@@ -45,18 +59,29 @@ HomePrep Server will progressively provide:
 - media storage where explicitly supported
 - import/migration from existing HomePrep Home Assistant data
 
-## Data ownership principles
+## Security and data ownership principles
 
 HomePrep Server is being designed around these principles:
 
 - self-hosted by default
 - no HomePrep cloud account required
 - no central HomePrep database required
-- local network use supported
+- local-network-only operation supported
 - remote access controlled by the server owner
+- database and persistent storage controlled by the user
 - structured HomePrep data rather than general-purpose file storage
-- data portability and backup built into the product
-- clients should be replaceable without trapping the household's data
+- data portability, backup and restore built into the product
+- documented data/API contracts to reduce lock-in
+- no mandatory telemetry for core operation
+- clients should make the connected server visible rather than hiding where data is stored
+
+## Backup and resilience
+
+The server is intended to provide HomePrep-native backup and restore so ownership does not depend on a particular hosting platform.
+
+Planned backup capabilities include scheduled local backups, retention policies, manual export/download, restore verification and optional user-controlled external backup destinations.
+
+A Home Assistant App/Add-on deployment may also participate in Home Assistant's own backup system where appropriate, but HomePrep-native backup should remain available independently.
 
 ## Planned operating modes
 
@@ -83,7 +108,7 @@ Each repository has its own roadmap and release lifecycle while sharing common H
 
 The current phase is **foundation and architecture**. The first milestone is to establish a stable server contract, development environment and minimal end-to-end path before expanding functionality.
 
-See [ROADMAP.md](ROADMAP.md) for the current plan and [CHANGELOG.md](CHANGELOG.md) for project updates.
+See [ROADMAP.md](ROADMAP.md) for the current plan, [DATA-OWNERSHIP.md](DATA-OWNERSHIP.md) for the project's permanent ownership commitment and [CHANGELOG.md](CHANGELOG.md) for project updates.
 
 ## License
 
