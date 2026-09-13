@@ -5,12 +5,13 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tkinter as tk
 import urllib.error
 import urllib.request
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 from homeprep_server import __version__
 from homeprep_server.standalone_config import (
@@ -115,6 +116,47 @@ def _create_local_backup(data_dir: Path) -> Path:
     return Path(result.path)
 
 
+def _validate_local_backup(path: Path):
+    from homeprep_server.core.backup import validate_backup
+
+    return validate_backup(path)
+
+
+def _ps_quote(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _restore_invocation(archive_path: Path) -> str:
+    if getattr(sys, "frozen", False):
+        server_executable = Path(sys.executable).with_name("HomePrepServer.exe")
+        return f"& {_ps_quote(server_executable)} --restore-backup {_ps_quote(archive_path)}"
+    return (
+        f"& {_ps_quote(sys.executable)} -m homeprep_server.launcher "
+        f"--restore-backup {_ps_quote(archive_path)}"
+    )
+
+
+def _restore_local_backup(archive_path: Path, *, restart_service: bool) -> bool:
+    restore_command = _restore_invocation(archive_path)
+    restore_step = (
+        f"{restore_command}; "
+        "if ($LASTEXITCODE -ne 0) { throw 'HomePrep restore command failed' }"
+    )
+    if restart_service:
+        script = (
+            "$ErrorActionPreference='Stop'; "
+            f"Stop-Service -Name '{SERVICE_NAME}' -Force -ErrorAction Stop; "
+            "try { "
+            f"{restore_step} "
+            "} finally { "
+            f"Start-Service -Name '{SERVICE_NAME}' -ErrorAction Stop "
+            "}"
+        )
+    else:
+        script = f"$ErrorActionPreference='Stop'; {restore_step}"
+    return _run_elevated_powershell(script)
+
+
 def _version_key(version: str) -> tuple[int, int, int, int]:
     clean = version.casefold().lstrip("v")
     numbers = [int(part) for part in re.findall(r"\d+", clean)[:3]]
@@ -148,8 +190,8 @@ class ManagerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("HomePrep Server Manager")
-        self.geometry("680x720")
-        self.minsize(620, 650)
+        self.geometry("700x750")
+        self.minsize(640, 680)
         self.data_dir = default_data_dir()
         self.config_data = load_standalone_config(self.data_dir)
 
@@ -301,7 +343,7 @@ class ManagerApp(tk.Tk):
                 "LAN exposes HomePrep on this computer's network interfaces. "
                 "Authentication still applies."
             ),
-            wraplength=460,
+            wraplength=480,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 8))
 
         backups = ttk.LabelFrame(root, text="Backups", padding=14)
@@ -359,9 +401,14 @@ class ManagerApp(tk.Tk):
         ).pack(side="left")
         ttk.Button(
             backup_buttons,
+            text="Restore backup…",
+            command=self.restore_backup,
+        ).pack(side="left", padx=8)
+        ttk.Button(
+            backup_buttons,
             text="Open backup folder",
             command=lambda: _open_folder(self.data_dir / "backups"),
-        ).pack(side="left", padx=8)
+        ).pack(side="left")
 
         ttk.Button(
             root,
@@ -430,6 +477,58 @@ class ManagerApp(tk.Tk):
         messagebox.showinfo(
             "Backup complete",
             f"Backup created successfully:\n\n{archive_path}",
+        )
+
+    def restore_backup(self) -> None:
+        selected = filedialog.askopenfilename(
+            title="Select HomePrep backup",
+            initialdir=self.data_dir / "backups",
+            filetypes=(("HomePrep backup", "*.zip"), ("All files", "*.*")),
+        )
+        if not selected:
+            return
+
+        archive_path = Path(selected)
+        validation = _validate_local_backup(archive_path)
+        if not validation.valid:
+            messagebox.showerror(
+                "Invalid backup",
+                f"This backup cannot be restored.\n\n{validation.error}",
+            )
+            return
+
+        household = validation.household_name or "No household configured"
+        confirmed = messagebox.askyesno(
+            "Restore HomePrep backup",
+            (
+                "This will replace the current HomePrep database.\n\n"
+                f"Backup: {archive_path.name}\n"
+                f"Created: {validation.created_at}\n"
+                f"Household: {household}\n\n"
+                "HomePrep will create a safety backup of the current database first. "
+                "Continue?"
+            ),
+        )
+        if not confirmed:
+            return
+
+        was_running = _service_state() == "Running"
+        if not _restore_local_backup(archive_path, restart_service=was_running):
+            messagebox.showerror(
+                "Restore failed",
+                (
+                    "HomePrep could not restore the selected backup. "
+                    "The existing database was not intentionally discarded."
+                ),
+            )
+            self.after(900, self.refresh_status)
+            return
+
+        self.after(900, self.refresh_status)
+        self.backup_var.set(_latest_backup_name(self.data_dir))
+        messagebox.showinfo(
+            "Restore complete",
+            "The backup was restored successfully. HomePrep is ready to use.",
         )
 
     def check_for_updates(self) -> None:
