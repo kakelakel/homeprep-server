@@ -18,7 +18,7 @@ def _configure_frozen_stdio() -> None:
 
     PyInstaller sets sys.stdout/sys.stderr to None when the executable is built
     without a console. Uvicorn's default logging formatter calls isatty() on
-    those streams, so point missing streams at the Windows null device.
+    those streams, so point missing streams at the null device.
     """
     if not getattr(sys, "frozen", False):
         return
@@ -39,7 +39,6 @@ def _configure_runtime_paths() -> None:
 
     # Alembic connects directly to SQLite before the FastAPI lifespan or
     # database helper gets a chance to create the persistent data directory.
-    # Ensure it exists before migrations run, especially for native Windows.
     Path(os.environ["HOMEPREP_DATA_DIR"]).mkdir(parents=True, exist_ok=True)
 
     if os.name == "nt" and "HOMEPREP_HOST" not in os.environ:
@@ -67,13 +66,7 @@ def _open_browser_later(url: str) -> None:
     threading.Thread(target=worker, daemon=True).start()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="HomePrep Server")
-    parser.add_argument("--open-browser", action="store_true")
-    args = parser.parse_args()
-
-    _configure_frozen_stdio()
-    _configure_runtime_paths()
+def _run_foreground(*, open_browser: bool) -> None:
     _run_migrations()
 
     import uvicorn
@@ -81,10 +74,72 @@ def main() -> None:
     from homeprep_server.core.config import settings
     from homeprep_server.main import app
 
-    if args.open_browser:
+    if open_browser:
         _open_browser_later(f"http://127.0.0.1:{settings.port}")
 
     uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
+
+
+def _run_service_workload(
+    stop_event: threading.Event,
+    mark_running: callable,
+) -> None:
+    """Run Uvicorn until the Windows Service Control Manager asks us to stop."""
+    _run_migrations()
+
+    import uvicorn
+
+    from homeprep_server.core.config import settings
+    from homeprep_server.main import app
+
+    config = uvicorn.Config(
+        app,
+        host=settings.host,
+        port=settings.port,
+        log_level="info",
+    )
+    server = uvicorn.Server(config)
+    server_thread = threading.Thread(target=server.run, name="homeprep-uvicorn")
+    server_thread.start()
+
+    deadline = time.monotonic() + 30
+    while server_thread.is_alive() and not server.started and not stop_event.is_set():
+        if time.monotonic() >= deadline:
+            server.should_exit = True
+            server_thread.join(timeout=10)
+            raise RuntimeError("HomePrep Server did not become ready in time")
+        time.sleep(0.1)
+
+    if not server_thread.is_alive():
+        raise RuntimeError("HomePrep Server stopped during service startup")
+
+    mark_running()
+    stop_event.wait()
+    server.should_exit = True
+    server_thread.join(timeout=20)
+    if server_thread.is_alive():
+        server.force_exit = True
+        server_thread.join(timeout=5)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="HomePrep Server")
+    parser.add_argument("--open-browser", action="store_true")
+    parser.add_argument("--service", action="store_true", help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    _configure_frozen_stdio()
+    _configure_runtime_paths()
+
+    if args.service:
+        if os.name != "nt":
+            parser.error("--service is only available on Windows")
+        from homeprep_server.windows_service import run_windows_service
+
+        run_windows_service(_run_service_workload)
+        return
+
+    _run_foreground(open_browser=args.open_browser)
 
 
 if __name__ == "__main__":
