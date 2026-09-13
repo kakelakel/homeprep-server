@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -37,6 +38,9 @@ class HouseholdService:
         if household is None:
             raise NotFoundError("Household not found")
         return household
+
+    def list_all(self) -> Sequence[HouseholdModel]:
+        return self.repository.list_all()
 
 
 class InventoryService:
