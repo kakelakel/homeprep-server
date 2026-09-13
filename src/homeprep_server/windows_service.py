@@ -11,6 +11,7 @@ import ctypes
 import os
 import subprocess
 import threading
+import time
 from collections.abc import Callable
 from ctypes import wintypes
 from pathlib import Path
@@ -84,6 +85,15 @@ def service_exists() -> bool:
     return _run_sc("query", SERVICE_NAME, check=False).returncode == 0
 
 
+def _wait_for_service_registration(timeout_seconds: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if service_exists():
+            return
+        time.sleep(0.1)
+    raise RuntimeError("HomePrep service was not registered by Windows in time")
+
+
 def install_windows_service(executable: str | Path) -> None:
     """Create or update the HomePrep Windows service."""
     executable_path = str(Path(executable).resolve())
@@ -102,10 +112,12 @@ def install_windows_service(executable: str | Path) -> None:
         _run_sc("config", *common)
     else:
         _run_sc("create", *common)
+        _wait_for_service_registration()
     _run_sc("description", SERVICE_NAME, SERVICE_DESCRIPTION)
 
 
 def start_windows_service() -> None:
+    _wait_for_service_registration()
     result = _run_sc("start", SERVICE_NAME, check=False)
     # 1056 means the service is already running.
     if result.returncode != 0 and "1056" not in (result.stdout + result.stderr):
