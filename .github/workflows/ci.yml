@@ -24,6 +24,11 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      - name: Migration smoke test
+        env:
+          HOMEPREP_DATABASE_URL: sqlite:////tmp/homeprep-migration-test.db
+        run: alembic upgrade head
+
       - name: Test
         env:
           HOMEPREP_DATA_DIR: /tmp/homeprep-test-data
