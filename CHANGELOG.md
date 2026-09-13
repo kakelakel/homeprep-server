@@ -46,16 +46,22 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Household and Inventory APIs now require an authenticated session, while health/readiness remain public.
 - First-run Web setup creates the local administrator before any preparedness data is exposed.
 - Authentication lifecycle tests covering setup, protected endpoints, logout, failed login and successful re-login.
+- Native Windows packaging with a self-contained executable and Inno Setup installer.
+- Native Windows Service mode so HomePrep Server starts automatically in the background without requiring an interactive user session.
+- HomePrep Server Manager for Windows with service status, Web/API reachability, start/stop/restart controls, data-folder access and network settings.
+- Standalone `config.json` support for user-managed bind address and port while explicit `HOMEPREP_*` environment variables retain precedence.
+- Installer shortcuts now resolve the configured port dynamically through HomePrep Server Manager instead of assuming port 8080.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
 - HomePrep Server is explicitly defined as a capability layer rather than a replacement for Home Assistant standalone operation.
 - Docker builds now use a Web build stage and ship one self-contained HomePrep Server image.
 - Native development now defaults to a relative `data/` directory; Docker and appliance deployments can continue to override it with `HOMEPREP_DATA_DIR=/data`.
+- Windows standalone installs keep persistent data and configuration under `%ProgramData%\HomePrep` and keep application binaries under Program Files.
 
 ### Planned next
-- Package the first Windows-native distribution so end users do not need Python, Node, Git or Docker.
-- Add a Windows installer that initializes the database, runs HomePrep as a background service and opens the Web UI.
+- Validate the Windows Service + Server Manager flow on real hardware, including reboot persistence and custom-port changes.
+- Extend the standalone manager concept to future standalone platform installers where appropriate.
 - Harden Household lifecycle and bootstrap behavior for a single-household server.
 - Add clearer API error envelopes and validation behavior.
 - Add Web edit/update flows and richer diagnostics.
