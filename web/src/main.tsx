@@ -72,7 +72,8 @@ function App() {
       setReady(readiness.status === "ready");
       setHouseholds(householdList);
       const stored = localStorage.getItem("homeprep.household_id");
-      const selected = householdList.find((item) => item.id === stored)?.id ?? householdList[0]?.id ?? "";
+      const selected =
+        householdList.find((item) => item.id === stored)?.id ?? householdList[0]?.id ?? "";
       setHouseholdId(selected);
       if (selected) await loadInventory(selected);
     } catch (err) {
@@ -232,8 +233,14 @@ function App() {
                     <strong>{item.name}</strong>
                     <span>{item.category.replaceAll("_", " ")} · revision {item.revision}</span>
                   </div>
-                  <div className="quantity">{item.quantity:g} {item.unit}</div>
-                  <button className="icon-button" onClick={() => void removeItem(item)} aria-label={`Remove ${item.name}`}>×</button>
+                  <div className="quantity">{item.quantity} {item.unit}</div>
+                  <button
+                    className="icon-button"
+                    onClick={() => void removeItem(item)}
+                    aria-label={`Remove ${item.name}`}
+                  >
+                    ×
+                  </button>
                 </article>
               ))}
             </div>
