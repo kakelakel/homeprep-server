@@ -1,7 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from homeprep_server import __version__
 from homeprep_server.core.config import settings
+from homeprep_server.core.identity import get_server_id
+from homeprep_server.database import database_is_ready
 
 router = APIRouter()
 
@@ -13,7 +15,8 @@ def health() -> dict[str, str]:
 
 @router.get("/readyz", tags=["system"])
 def readiness() -> dict[str, str]:
-    # Database readiness will be added when persistence is initialized.
+    if not database_is_ready():
+        raise HTTPException(status_code=503, detail="Database unavailable")
     return {"status": "ready"}
 
 
@@ -24,4 +27,5 @@ def system_info() -> dict[str, str]:
         "version": __version__,
         "environment": settings.environment,
         "api_version": "v1",
+        "server_id": str(get_server_id()),
     }
