@@ -21,6 +21,9 @@ def _configure_runtime_paths() -> None:
         else:
             os.environ["HOMEPREP_DATA_DIR"] = str(Path("data").resolve())
 
+    if os.name == "nt" and "HOMEPREP_HOST" not in os.environ:
+        os.environ["HOMEPREP_HOST"] = "127.0.0.1"
+
     if getattr(sys, "frozen", False) and "HOMEPREP_WEB_DIR" not in os.environ:
         os.environ["HOMEPREP_WEB_DIR"] = str(_bundle_root() / "web" / "dist")
 
