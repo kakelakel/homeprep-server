@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8080
     data_dir: Path = Path("/data")
+    web_dir: Path = Path("web/dist")
     database_url: str | None = None
 
     @property
