@@ -217,7 +217,13 @@ class ManagerApp(tk.Tk):
         messagebox.showinfo("HomePrep", "Settings saved and HomePrep Server restarted.")
 
     def open_services(self) -> None:
-        subprocess.Popen(["services.msc"], creationflags=CREATE_NO_WINDOW)
+        try:
+            subprocess.Popen(["mmc.exe", "services.msc"])
+        except OSError as exc:
+            messagebox.showerror(
+                "HomePrep",
+                f"Could not open Windows Services.\n\n{exc}",
+            )
 
 
 def main() -> None:
