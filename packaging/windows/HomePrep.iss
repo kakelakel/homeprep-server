@@ -34,17 +34,33 @@ Name: "{autodesktop}\HomePrep"; Filename: "http://127.0.0.1:8080"; Tasks: deskto
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
-[Registry]
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "HomePrepServer"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue
-
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--open-browser"; Description: "Start HomePrep"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--install-service"; Flags: runhidden waituntilterminated
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--start-service"; Flags: runhidden waituntilterminated
+Filename: "http://127.0.0.1:8080"; Description: "Open HomePrep"; Flags: shellexec nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
-Filename: "{cmd}"; Parameters: "/C taskkill /IM {#MyAppExeName} /F"; Flags: runhidden; RunOnceId: "StopHomePrep"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--stop-service"; Flags: runhidden waituntilterminated; RunOnceId: "StopHomePrepService"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--remove-service"; Flags: runhidden waituntilterminated; RunOnceId: "RemoveHomePrepService"
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
 
-; Preparedness data intentionally lives outside the installation directory
-; under %ProgramData%\HomePrep and is not removed during uninstall.
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  { Stop either the new service or a legacy foreground/autostart process before upgrade. }
+  Exec(ExpandConstant('{sys}\sc.exe'), 'stop HomePrepServer', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM HomePrepServer.exe /F', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+
+  { Older installer builds used HKLM Run instead of a Windows service. }
+  RegDeleteValue(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Run', 'HomePrepServer');
+  Result := '';
+end;
+
+{ Preparedness data intentionally lives outside the installation directory
+  under %ProgramData%\HomePrep and is not removed during uninstall. }
