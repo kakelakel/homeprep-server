@@ -26,21 +26,29 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Runtime configuration through `HOMEPREP_*` environment variables.
 - SQLite/SQLAlchemy engine and session foundation.
 - Alembic migration environment plus the first schema migration.
-- First persistent `Household` model and API.
+- First persistent `Household` model and API, including household listing for local clients.
 - First persistent `Inventory` model and CRUD API.
 - Inventory revision checks with `409 Conflict` for stale writes.
 - Soft-delete/tombstone behavior for Inventory records.
-- Docker startup now applies database migrations before starting the API.
+- First HomePrep Web client using React, TypeScript and Vite.
+- Web dashboard showing server status, active household and live Inventory data.
+- Web flows for creating households, adding Inventory items and soft-deleting Inventory items.
+- HomePrep Web is bundled into the production Server image and served by FastAPI.
+- Vite development proxy for running Web and API separately during development.
+- Dedicated Web build job in GitHub Actions CI.
+- Docker startup applies database migrations before starting the API.
 - Dockerfile and Docker Compose reference deployment with persistent `/data` storage and health check.
 - Pytest coverage for system endpoints and the first Household/Inventory create, list, update, conflict and delete flow.
-- GitHub Actions CI for lint, migration smoke test, tests and Docker image build.
+- GitHub Actions CI for lint, migration smoke test, tests, Web build and Docker image build.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
 - HomePrep Server is explicitly defined as a capability layer rather than a replacement for Home Assistant standalone operation.
+- Docker builds now use a Web build stage and ship one self-contained HomePrep Server image.
 
 ### Planned next
 - Harden Household lifecycle and bootstrap behavior for a single-household server.
 - Add clearer API error envelopes and validation behavior.
-- Add the first minimal Web/diagnostics client against the live API.
+- Add Web edit/update flows and richer diagnostics.
+- Prove a full Docker runtime smoke test with the bundled Web client.
 - Then begin the explicit Home Assistant import/bridge path rather than expanding every domain at once.
