@@ -78,12 +78,17 @@ PrincipalDep = Annotated[RequestPrincipal, Depends(require_principal)]
 
 
 def require_write_principal(principal: PrincipalDep) -> RequestPrincipal:
-    if principal.kind == "client" and principal.role == "read_only":
+    can_write = (
+        principal.kind == "user" and principal.role in {"owner", "editor"}
+    ) or (
+        principal.kind == "client" and principal.role == "full_access"
+    )
+    if not can_write:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "write_access_required",
-                "message": "This client credential is read-only",
+                "message": "This identity does not have write access",
             },
         )
     return principal
