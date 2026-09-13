@@ -12,6 +12,8 @@ from tkinter import messagebox, ttk
 
 from homeprep_server import __version__
 from homeprep_server.standalone_config import (
+    DEFAULT_BACKUP_RETENTION,
+    DEFAULT_BACKUP_SCHEDULE,
     DEFAULT_PORT,
     default_data_dir,
     load_standalone_config,
@@ -118,8 +120,8 @@ class ManagerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("HomePrep Server Manager")
-        self.geometry("650x610")
-        self.minsize(600, 560)
+        self.geometry("680x680")
+        self.minsize(620, 620)
         self.data_dir = default_data_dir()
         self.config_data = load_standalone_config(self.data_dir)
 
@@ -129,6 +131,12 @@ class ManagerApp(tk.Tk):
         self.port_var = tk.StringVar(value=str(self.config_data.get("port", DEFAULT_PORT)))
         self.access_var = tk.StringVar(
             value="LAN" if self.config_data.get("host") == "0.0.0.0" else "Local only"
+        )
+        self.backup_schedule_var = tk.StringVar(
+            value=str(self.config_data.get("backup_schedule", DEFAULT_BACKUP_SCHEDULE)).title()
+        )
+        self.backup_retention_var = tk.StringVar(
+            value=str(self.config_data.get("backup_retention", DEFAULT_BACKUP_RETENTION))
         )
 
         self._build_ui()
@@ -265,20 +273,55 @@ class ManagerApp(tk.Tk):
                 "LAN exposes HomePrep on this computer's network interfaces. "
                 "Authentication still applies."
             ),
-            wraplength=430,
+            wraplength=460,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 8))
-        ttk.Button(
-            settings,
-            text="Save settings and restart",
-            command=self.save_settings,
-        ).pack(anchor="w")
 
         backups = ttk.LabelFrame(root, text="Backups", padding=14)
         backups.pack(fill="x", pady=(16, 0))
-        backup_row = ttk.Frame(backups)
-        backup_row.pack(fill="x")
-        ttk.Label(backup_row, text="Latest:").pack(side="left")
-        ttk.Label(backup_row, textvariable=self.backup_var).pack(side="left", padx=(8, 0))
+        backup_form = ttk.Frame(backups)
+        backup_form.pack(fill="x")
+        ttk.Label(backup_form, text="Latest:").grid(
+            row=0,
+            column=0,
+            sticky="w",
+            padx=(0, 14),
+            pady=4,
+        )
+        ttk.Label(backup_form, textvariable=self.backup_var).grid(
+            row=0,
+            column=1,
+            columnspan=2,
+            sticky="w",
+            pady=4,
+        )
+        ttk.Label(backup_form, text="Schedule:").grid(
+            row=1,
+            column=0,
+            sticky="w",
+            padx=(0, 14),
+            pady=4,
+        )
+        ttk.Combobox(
+            backup_form,
+            textvariable=self.backup_schedule_var,
+            values=("Off", "Daily", "Weekly"),
+            state="readonly",
+            width=14,
+        ).grid(row=1, column=1, sticky="w", pady=4)
+        ttk.Label(backup_form, text="Keep backups:").grid(
+            row=2,
+            column=0,
+            sticky="w",
+            padx=(0, 14),
+            pady=4,
+        )
+        ttk.Entry(
+            backup_form,
+            textvariable=self.backup_retention_var,
+            width=8,
+        ).grid(row=2, column=1, sticky="w", pady=4)
+        ttk.Label(backup_form, text="files").grid(row=2, column=2, sticky="w", pady=4)
+
         backup_buttons = ttk.Frame(backups)
         backup_buttons.pack(fill="x", pady=(10, 0))
         ttk.Button(
@@ -291,6 +334,12 @@ class ManagerApp(tk.Tk):
             text="Open backup folder",
             command=lambda: _open_folder(self.data_dir / "backups"),
         ).pack(side="left", padx=8)
+
+        ttk.Button(
+            root,
+            text="Save settings and restart",
+            command=self.save_settings,
+        ).pack(anchor="w", pady=(16, 0))
 
         tools = ttk.Frame(root)
         tools.pack(fill="x", pady=(16, 0))
@@ -353,8 +402,15 @@ class ManagerApp(tk.Tk):
     def save_settings(self) -> None:
         try:
             port = int(self.port_var.get())
+            retention = int(self.backup_retention_var.get())
             host = "0.0.0.0" if self.access_var.get() == "LAN" else "127.0.0.1"
-            save_standalone_config(host, port, self.data_dir)
+            save_standalone_config(
+                host,
+                port,
+                self.data_dir,
+                backup_schedule=self.backup_schedule_var.get().casefold(),
+                backup_retention=retention,
+            )
         except ValueError as exc:
             messagebox.showerror("Invalid settings", str(exc))
             return
