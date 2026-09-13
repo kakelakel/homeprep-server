@@ -6,85 +6,215 @@ A self-hosted system is only meaningfully user-owned if the household can recove
 
 ## Goals
 
-HomePrep Server should provide:
+HomePrep Server provides or is designed to provide:
 
 - manual backup
 - scheduled backup
 - configurable retention
 - integrity validation
-- documented restore
+- explicit restore
 - portability between compatible HomePrep Server installations
 - backup operation independent of HomePrep-operated services
 - a versioned portable migration/export package
 - platform-neutral behavior across Windows, Docker, Home Assistant App/Add-on and other compatible Server deployments
 
-Backup scheduling and archive creation belong to **HomePrep Server core**, not to a Windows-only implementation. Platform management surfaces such as **HomePrep Server Manager** should configure and invoke the same Server backup subsystem.
+Backup creation, validation, restore primitives and scheduling belong to **HomePrep Server core**, not to a Windows-only implementation. Platform management surfaces such as **HomePrep Server Manager** configure and invoke the shared subsystem.
 
-## Windows Server Manager
+## Current implementation
 
-The Windows standalone Manager is expected to become the primary local administration surface for backup/recovery on that platform.
+The initial native backup/restore proof is implemented for SQLite Server installations.
 
-Planned Manager capabilities include:
+A backup is a ZIP archive named approximately:
 
-- **Back up now**
-- backup destination/status display
-- scheduled backup enable/disable
-- backup frequency/cadence
-- retention configuration
-- recent backup history and failure state
-- explicit restore/import flow
-- open backup folder
+```text
+homeprep-backup-YYYYMMDDTHHMMSSZ.zip
+```
 
-The Manager should not implement its own independent database-copy logic. It should call shared Server backup APIs/services so the same backup format and validation rules apply everywhere.
-
-## Initial backup scope
-
-The initial structured-data Server should back up everything required to recreate the household's HomePrep state.
-
-Conceptually this includes:
+The archive currently contains:
 
 ```text
 manifest.json
-structured-data snapshot
-configuration metadata required for restore
-media/        # when Server media support is introduced
+homeprep.db
 ```
 
-The internal backup implementation may use a consistent SQLite snapshot, but the **portable format must not be defined merely as "copy this Windows SQLite file"**. The package needs a documented/versioned manifest and clear compatibility semantics.
+The database snapshot is created through SQLite's supported backup API rather than by blindly copying a live database file.
 
-Secrets/credentials require careful handling and may have separate export/recovery rules rather than being blindly copied into portable archives.
+Current backup format version:
 
-## SQLite backups
+```text
+1
+```
 
-The Server must not assume that copying a live SQLite database file is always a safe backup procedure.
-
-HomePrep should use a SQLite-supported consistent snapshot/backup mechanism or an equivalent controlled transaction/checkpoint process.
-
-Backups should be created by HomePrep itself while the database is in a known consistent state.
-
-## Backup / migration manifest
-
-A portable HomePrep backup should include a small manifest containing information such as:
+The current manifest records:
 
 - backup format version
+- product identity
 - HomePrep Server version
-- API/data schema compatibility version
-- database schema/migration version
-- server instance identifier where useful
-- household identifier
-- backup timestamp
+- Server instance ID
+- UTC backup timestamp
+- database engine
+- Alembic migration version where available
+- active Household ID/name where configured
 - included components
-- checksum/integrity information where practical
 
-The manifest must not contain credentials unnecessarily.
+The first implementation intentionally keeps the package simple while establishing stable validation and portability semantics before additional domains/media are added.
 
-The format must be forward-migratable. A newer compatible Server should be able to inspect an older package, determine whether it can restore/import it, perform required forward migrations and report the result clearly.
+## Current backup administration
+
+The Server exposes owner-only API operations:
+
+```text
+GET  /api/v1/backups
+POST /api/v1/backups
+```
+
+Windows Server Manager currently exposes:
+
+- **Back up now**
+- latest local backup display
+- **Open backup folder**
+- schedule: `Off`, `Daily`, `Weekly`
+- retention as number of normal backup archives to keep
+- **Restore backup…** with package validation and explicit confirmation
+
+The schedule runs in the HomePrep Server process using the same core backup code rather than Windows Task Scheduler. This is deliberate groundwork for equivalent behavior in Docker and the future Home Assistant App/Add-on.
+
+## Backup validation
+
+Before restore, HomePrep validates the archive rather than trusting a ZIP by filename.
+
+Current validation checks include:
+
+1. archive can be opened
+2. required `manifest.json` and `homeprep.db` components exist
+3. the product marker identifies a HomePrep Server backup
+4. the backup format version is supported
+5. the database engine is supported
+6. the extracted SQLite snapshot passes `PRAGMA integrity_check`
+
+Validation returns structured metadata including source Server version, backup timestamp, Household identity/name and migration version where available.
+
+Future versions may add checksums/signatures and deeper relationship/schema validation as the portable format expands.
+
+## Restore behavior
+
+Restore is an explicit administrative action.
+
+The implemented SQLite restore primitive:
+
+1. validates the archive
+2. locates the configured SQLite database
+3. creates a **pre-restore safety backup** when current data exists
+4. extracts the candidate database to temporary storage
+5. resets active SQLAlchemy database state
+6. stages the candidate as a replacement file
+7. replaces the configured database only after validation/staging
+8. resets database state again
+
+The standalone launcher exposes offline administrative commands:
+
+```text
+HomePrepServer.exe --validate-backup <path>
+HomePrepServer.exe --restore-backup <path>
+```
+
+Windows Server Manager wraps this in a safer UI flow:
+
+```text
+select backup
+    ↓
+validate
+    ↓
+show source metadata + confirm
+    ↓
+stop Windows Service if running
+    ↓
+restore with pre-restore safety backup
+    ↓
+restart service if it was previously running
+    ↓
+normal startup applies forward Alembic migrations
+```
+
+The Manager attempts to restart the Windows Service even if the restore command fails after the service has been stopped, so an operational failure does not intentionally leave the service down.
+
+A failed validation never proceeds to destructive replacement.
+
+## Restore testing
+
+The automated test suite proves more than archive creation.
+
+Current restore regression coverage performs:
+
+```text
+create Household + Inventory
+      ↓
+create backup
+      ↓
+mutate Inventory after backup
+      ↓
+restore old backup
+      ↓
+verify old Inventory state returned
+      ↓
+open pre-restore safety backup
+      ↓
+verify it contains the newer pre-restore state
+```
+
+The backup test also opens the archive directly, verifies manifest contents, extracts `homeprep.db` and queries the snapshot with SQLite.
+
+Restore testing is part of the feature, not an optional operational exercise.
+
+## Scheduling and retention
+
+The current simple scheduling model supports:
+
+- `off`
+- `daily`
+- `weekly`
+
+The Server periodically checks whether a backup is due based on the latest recognized archive. After a scheduled backup, it prunes the oldest normal backup archives beyond the configured retention count.
+
+Windows standalone currently stores these values in `config.json`:
+
+```json
+{
+  "backup_schedule": "daily",
+  "backup_retention": 14
+}
+```
+
+Retention applies only to normal `homeprep-backup-*.zip` archives. Pre-restore safety backups are stored separately so routine retention does not silently remove the immediate rollback checkpoint for a restore operation.
+
+A future scheduler pass should add durable last-run/failure diagnostics rather than merely preventing scheduler failures from crashing the Server.
 
 ## Portable migration format
 
-HomePrep needs a sane path for moving all household data between installations and deployment types.
+The same backup package is intended to become the normal Server-to-Server portability path.
 
-The portable package should preserve, where applicable:
+A user should be able to move a compatible HomePrep installation without contacting HomePrep or obtaining a cloud migration token:
+
+```text
+Old HomePrep Server
+       ↓
+portable backup/export
+       ↓
+New HomePrep Server
+       ↓
+validate → restore/import → forward migrate → integrity check
+```
+
+Target compatibility examples:
+
+```text
+Windows → Docker
+Docker → Home Assistant App/Add-on
+Home Assistant App/Add-on → Windows
+Old machine → replacement machine
+```
+
+As Server domains expand, the portable package must preserve where applicable:
 
 - Household identity
 - stable object IDs
@@ -94,86 +224,45 @@ The portable package should preserve, where applicable:
 - schema versions
 - tombstones/deletion metadata
 - supported local media
-- domain data from Inventory, Containers, Assets, Tasks, Plans, Targets and Shopping as those Server domains are implemented
+- Inventory, Containers, Assets, Tasks, Plans, Targets and Shopping data
 
-The format must deliberately distinguish **household/domain data** from **installation-local secrets and credentials**. Device tokens, Web sessions and other secrets should not be blindly transplanted to another machine merely because domain data is moved.
+The format must not redefine the domain model per platform.
 
-A future HA → Server import may use a normalized interchange representation closely related to this portable format, but the importer must explicitly validate source schema/version and report what was imported, transformed, skipped or rejected.
+## Credentials and secrets
 
-## Retention
+The current SQLite snapshot necessarily contains the Server's stored authentication records, but HomePrep stores session/client tokens as hashes rather than plaintext credentials.
 
-Scheduled backup retention should be configurable.
+Portable migration policy for credentials must remain deliberate. Domain-data portability and installation-local security state are different concerns; future export modes may choose to invalidate or exclude selected authentication state when moving to another machine.
 
-A reasonable simple model may support daily/weekly/monthly retention without forcing users to manage raw backup files manually.
-
-Exact defaults should be selected after the backup format is implemented and tested.
-
-Retention policy should be implemented in Server core so all deployment types behave consistently.
-
-## Restore behavior
-
-Restore must be an explicit administrative action.
-
-The restore flow should:
-
-1. validate the backup package/manifest
-2. verify format/schema compatibility
-3. verify package integrity
-4. preserve or checkpoint the current state before destructive replacement where practical
-5. restore/import structured data and supported files
-6. run required forward migrations if the source schema is older
-7. validate database integrity and key object relationships
-8. start normal service only when the restored state is ready
-9. provide a clear restore report
-
-A failed restore must not silently leave the server reporting a healthy state with partially restored data.
-
-## Moving to another server
-
-A user should be able to move a HomePrep installation to new infrastructure without contacting HomePrep or obtaining a cloud migration token.
-
-The intended portability story is:
-
-```text
-Old HomePrep Server
-       ↓
-portable backup/export
-       ↓
-New HomePrep Server
-       ↓
-validate → restore/import → migrate → integrity check
-```
-
-This must work between compatible deployment types, for example:
-
-```text
-Windows → Docker
-Docker → Home Assistant App/Add-on
-Home Assistant App/Add-on → Windows
-Old machine → replacement machine
-```
-
-without redefining the household data model per platform.
+Do not claim that every credential is portable merely because its hashed database record exists in a snapshot.
 
 ## Updates and pre-upgrade safety
 
 Standalone update handling and backup should cooperate.
 
-Before an update that includes data/schema migrations which could make downgrade difficult, HomePrep should create or require a recent verified backup/checkpoint. An unattended update path must not be enabled until package authenticity, data preservation and failure recovery are proven.
+Windows Server Manager now includes **Check for updates**, using the latest published GitHub Release as the stable release channel. This first version compares installed/latest versions and can open the release page; it does not silently download or execute an installer.
 
-The Windows Server Manager should eventually provide **Check for updates** and a safe installer/update handoff, while Server core remains responsible for migration and data integrity behavior.
+Before enabling a one-click or unattended update path, HomePrep should prove:
+
+- trustworthy/signed release assets
+- package authenticity verification
+- pre-upgrade verified backup/checkpoint
+- preservation of persistent data/configuration
+- schema migration failure handling
+- safe service restart
+- recovery/rollback behavior
+
+Automatic updates should be opt-in only after those properties are real, not aspirational.
 
 ## Home Assistant backups
 
 A future Home Assistant App/Add-on deployment should participate in Home Assistant's backup system where supported.
 
-That integration is useful, but it does not replace HomePrep-native backup and restore.
-
-Users running HomePrep Server outside Home Assistant must receive equivalent recovery capability.
+That integration is useful, but it does not replace HomePrep-native backup and restore. Users running HomePrep Server outside Home Assistant must receive equivalent recovery capability.
 
 ## External backup destinations
 
-The first release can store backups locally under the persistent data directory.
+The first implementation stores backups locally under the persistent data directory.
 
 Later optional destinations may include user-controlled storage such as:
 
@@ -181,30 +270,12 @@ Later optional destinations may include user-controlled storage such as:
 - WebDAV
 - S3-compatible object storage
 
-External targets should be added only when they can be implemented securely and predictably.
+External targets should be added only when local backup/restore is robust and the external credential/storage behavior can be implemented securely and predictably.
 
 ## Encryption
 
 Backup encryption is an important future design decision, especially for copies stored outside the user's primary server.
 
-The initial implementation must not claim encrypted backups unless HomePrep itself actually provides and verifies that encryption. Users may initially rely on encryption provided by their destination/storage infrastructure.
+The current implementation does **not** claim application-level encrypted backups. Users may initially rely on encryption provided by their destination/storage infrastructure.
 
-## Testing
-
-A backup feature is not complete merely because archives can be created.
-
-Automated tests should prove at minimum:
-
-```text
-create known data
-      ↓
-backup/export
-      ↓
-restore/import into clean compatible instance
-      ↓
-validate records, relationships, revisions and tombstones
-```
-
-Cross-version tests should also prove that supported older backup-format/schema versions can be migrated forward.
-
-Restore testing is part of the feature, not an optional operational exercise.
+Do not describe backups as encrypted unless HomePrep itself actually provides and verifies that encryption.
