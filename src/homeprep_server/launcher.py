@@ -132,7 +132,13 @@ def main() -> None:
     _configure_runtime_paths()
 
     service_action = any(
-        (args.service, args.install_service, args.start_service, args.stop_service, args.remove_service)
+        (
+            args.service,
+            args.install_service,
+            args.start_service,
+            args.stop_service,
+            args.remove_service,
+        )
     )
     if service_action and os.name != "nt":
         parser.error("Windows service commands are only available on Windows")
