@@ -2,6 +2,7 @@
 #define MyAppVersion "0.1.0-dev0"
 #define MyAppPublisher "HomePrep"
 #define MyAppExeName "HomePrepServer.exe"
+#define MyManagerExeName "HomePrepServerManager.exe"
 
 [Setup]
 AppId={{7A5E0C9F-26F9-4E7C-A649-AD5E79429311}
@@ -23,13 +24,15 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
 Source: "..\..\dist\HomePrepServer.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dist\HomePrepServerManager.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{commonappdata}\HomePrep"; Permissions: users-modify
 
 [Icons]
-Name: "{autoprograms}\HomePrep"; Filename: "http://127.0.0.1:8080"
-Name: "{autodesktop}\HomePrep"; Filename: "http://127.0.0.1:8080"; Tasks: desktopicon
+Name: "{autoprograms}\HomePrep"; Filename: "{app}\{#MyManagerExeName}"; Parameters: "--open-homeprep"
+Name: "{autoprograms}\HomePrep Server Manager"; Filename: "{app}\{#MyManagerExeName}"
+Name: "{autodesktop}\HomePrep"; Filename: "{app}\{#MyManagerExeName}"; Parameters: "--open-homeprep"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
@@ -37,7 +40,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--install-service"; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--start-service"; Flags: runhidden waituntilterminated
-Filename: "http://127.0.0.1:8080"; Description: "Open HomePrep"; Flags: shellexec nowait postinstall skipifsilent runasoriginaluser
+Filename: "{app}\{#MyManagerExeName}"; Parameters: "--open-homeprep"; Description: "Open HomePrep"; Flags: nowait postinstall skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--stop-service"; Flags: runhidden waituntilterminated; RunOnceId: "StopHomePrepService"
@@ -55,6 +58,8 @@ begin
   Exec(ExpandConstant('{sys}\sc.exe'), 'stop HomePrepServer', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM HomePrepServer.exe /F', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM HomePrepServerManager.exe /F', '', SW_HIDE,
     ewWaitUntilTerminated, ResultCode);
 
   { Older installer builds used HKLM Run instead of a Windows service. }
