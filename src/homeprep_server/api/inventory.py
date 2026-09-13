@@ -1,20 +1,16 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from homeprep_server.api.auth import require_user
+from homeprep_server.api.client_auth import PrincipalDep, WritePrincipalDep
 from homeprep_server.database import get_session
 from homeprep_server.schemas import InventoryCreate, InventoryRead, InventoryUpdate
 from homeprep_server.services import ConflictError, InventoryService, NotFoundError
 
-router = APIRouter(
-    prefix="/api/v1/inventory",
-    tags=["inventory"],
-    dependencies=[Depends(require_user)],
-)
-SessionDep = Annotated[Session, Depends(get_session)]
+router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
+SessionDep = Annotated[Session, get_session]
 ExpectedRevision = Annotated[int, Query(ge=1)]
 
 
@@ -30,7 +26,9 @@ def _translate_error(exc: Exception) -> HTTPException:
 def create_inventory_item(
     payload: InventoryCreate,
     session: SessionDep,
+    principal: WritePrincipalDep,
 ) -> InventoryRead:
+    del principal
     try:
         return InventoryService(session).create(payload)
     except (NotFoundError, ConflictError) as exc:
@@ -41,7 +39,9 @@ def create_inventory_item(
 def list_inventory(
     household_id: UUID,
     session: SessionDep,
+    principal: PrincipalDep,
 ) -> list[InventoryRead]:
+    del principal
     try:
         return list(InventoryService(session).list_for_household(household_id))
     except NotFoundError as exc:
@@ -52,7 +52,9 @@ def list_inventory(
 def get_inventory_item(
     item_id: UUID,
     session: SessionDep,
+    principal: PrincipalDep,
 ) -> InventoryRead:
+    del principal
     try:
         return InventoryService(session).get(item_id)
     except NotFoundError as exc:
@@ -64,7 +66,9 @@ def update_inventory_item(
     item_id: UUID,
     payload: InventoryUpdate,
     session: SessionDep,
+    principal: WritePrincipalDep,
 ) -> InventoryRead:
+    del principal
     try:
         return InventoryService(session).update(item_id, payload)
     except (NotFoundError, ConflictError) as exc:
@@ -76,7 +80,9 @@ def delete_inventory_item(
     item_id: UUID,
     expected_revision: ExpectedRevision,
     session: SessionDep,
+    principal: WritePrincipalDep,
 ) -> InventoryRead:
+    del principal
     try:
         return InventoryService(session).delete(item_id, expected_revision)
     except (NotFoundError, ConflictError) as exc:
