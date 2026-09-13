@@ -1,6 +1,6 @@
 from pathlib import Path
 
-root = Path(SPECPATH).parents[1]
+root = Path.cwd()
 
 block_cipher = None
 
