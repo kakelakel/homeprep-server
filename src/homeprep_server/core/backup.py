@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 import tempfile
 import zipfile
@@ -9,11 +10,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 
 from homeprep_server import __version__
 from homeprep_server.core.config import settings
 from homeprep_server.core.identity import get_server_id
-from homeprep_server.database import get_engine
+from homeprep_server.database import get_engine, reset_database_state
 
 BACKUP_FORMAT_VERSION = 1
 
@@ -25,6 +27,18 @@ class BackupResult:
     created_at: str
     size_bytes: int
     format_version: int
+
+
+@dataclass(frozen=True)
+class BackupValidation:
+    valid: bool
+    format_version: int | None
+    server_version: str | None
+    created_at: str | None
+    household_id: str | None
+    household_name: str | None
+    migration_version: str | None
+    error: str | None = None
 
 
 def _utc_now() -> datetime:
@@ -68,6 +82,16 @@ def _snapshot_sqlite(destination: Path) -> None:
         raw_connection.close()
 
 
+def _configured_sqlite_path() -> Path:
+    url = make_url(settings.resolved_database_url)
+    if url.get_backend_name() != "sqlite" or not url.database:
+        raise RuntimeError("Restore currently supports file-based SQLite installations only")
+    database_path = Path(url.database)
+    if not database_path.is_absolute():
+        database_path = Path.cwd() / database_path
+    return database_path.resolve()
+
+
 def create_backup(destination_dir: Path | None = None) -> BackupResult:
     """Create a consistent portable HomePrep backup archive."""
     created_at = _utc_now()
@@ -105,14 +129,97 @@ def create_backup(destination_dir: Path | None = None) -> BackupResult:
             archive.write(manifest_path, "manifest.json")
             archive.write(snapshot_path, "homeprep.db")
 
-    result = BackupResult(
+    return BackupResult(
         filename=filename,
         path=str(archive_path.resolve()),
         created_at=created_at.isoformat(),
         size_bytes=archive_path.stat().st_size,
         format_version=BACKUP_FORMAT_VERSION,
     )
-    return result
+
+
+def validate_backup(archive_path: Path) -> BackupValidation:
+    """Validate backup structure, manifest compatibility and SQLite integrity."""
+    try:
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            names = set(archive.namelist())
+            required = {"manifest.json", "homeprep.db"}
+            if not required.issubset(names):
+                raise ValueError("Backup archive is missing required components")
+
+            manifest = json.loads(archive.read("manifest.json"))
+            format_version = int(manifest["backup_format_version"])
+            if format_version != BACKUP_FORMAT_VERSION:
+                raise ValueError(
+                    f"Unsupported backup format version {format_version}; "
+                    f"expected {BACKUP_FORMAT_VERSION}"
+                )
+            if manifest.get("product") != "HomePrep Server":
+                raise ValueError("Backup archive is not a HomePrep Server backup")
+            if manifest.get("database", {}).get("engine") != "sqlite":
+                raise ValueError("Backup database engine is not supported")
+
+            household = manifest.get("household") or {}
+            with tempfile.TemporaryDirectory(prefix="homeprep-validate-") as temp_dir:
+                database_path = Path(temp_dir) / "homeprep.db"
+                database_path.write_bytes(archive.read("homeprep.db"))
+                with sqlite3.connect(database_path) as connection:
+                    integrity = connection.execute("PRAGMA integrity_check").fetchone()
+                if integrity != ("ok",):
+                    raise ValueError("SQLite integrity check failed")
+
+            return BackupValidation(
+                valid=True,
+                format_version=format_version,
+                server_version=str(manifest.get("server_version")),
+                created_at=str(manifest.get("created_at")),
+                household_id=str(household.get("id")) if household.get("id") else None,
+                household_name=(
+                    str(household.get("name")) if household.get("name") else None
+                ),
+                migration_version=(
+                    str(manifest.get("database", {}).get("migration_version"))
+                    if manifest.get("database", {}).get("migration_version")
+                    else None
+                ),
+            )
+    except (KeyError, OSError, ValueError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+        return BackupValidation(
+            valid=False,
+            format_version=None,
+            server_version=None,
+            created_at=None,
+            household_id=None,
+            household_name=None,
+            migration_version=None,
+            error=str(exc),
+        )
+
+
+def restore_backup(archive_path: Path, *, safety_backup: bool = True) -> BackupValidation:
+    """Restore a validated backup while the normal server process is offline."""
+    validation = validate_backup(archive_path)
+    if not validation.valid:
+        raise RuntimeError(validation.error or "Backup validation failed")
+
+    database_path = _configured_sqlite_path()
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if safety_backup and database_path.exists():
+        create_backup(Path(settings.data_dir) / "backups" / "pre-restore")
+
+    with tempfile.TemporaryDirectory(prefix="homeprep-restore-") as temp_dir:
+        candidate_path = Path(temp_dir) / "homeprep.db"
+        with zipfile.ZipFile(archive_path, "r") as archive:
+            candidate_path.write_bytes(archive.read("homeprep.db"))
+
+        reset_database_state()
+        replacement_path = database_path.with_suffix(database_path.suffix + ".restore-new")
+        shutil.copy2(candidate_path, replacement_path)
+        replacement_path.replace(database_path)
+
+    reset_database_state()
+    return validation
 
 
 def list_backups(destination_dir: Path | None = None) -> list[BackupResult]:
