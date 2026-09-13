@@ -7,6 +7,8 @@ import webbrowser
 from collections.abc import Callable
 from pathlib import Path
 
+from homeprep_server.standalone_config import default_data_dir, load_standalone_config
+
 
 def _bundle_root() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
@@ -27,16 +29,16 @@ def _configure_frozen_stdio() -> None:
 
 def _configure_runtime_paths() -> None:
     if "HOMEPREP_DATA_DIR" not in os.environ:
-        if os.name == "nt":
-            base = Path(os.environ.get("PROGRAMDATA", Path.home()))
-            os.environ["HOMEPREP_DATA_DIR"] = str(base / "HomePrep")
-        else:
-            os.environ["HOMEPREP_DATA_DIR"] = str(Path("data").resolve())
+        os.environ["HOMEPREP_DATA_DIR"] = str(default_data_dir())
 
-    Path(os.environ["HOMEPREP_DATA_DIR"]).mkdir(parents=True, exist_ok=True)
+    data_dir = Path(os.environ["HOMEPREP_DATA_DIR"])
+    data_dir.mkdir(parents=True, exist_ok=True)
 
-    if os.name == "nt" and "HOMEPREP_HOST" not in os.environ:
-        os.environ["HOMEPREP_HOST"] = "127.0.0.1"
+    # Native standalone installs keep normal settings in config.json. Explicit
+    # environment variables still win for Docker and advanced deployments.
+    standalone = load_standalone_config(data_dir)
+    os.environ.setdefault("HOMEPREP_HOST", str(standalone["host"]))
+    os.environ.setdefault("HOMEPREP_PORT", str(standalone["port"]))
 
     if getattr(sys, "frozen", False) and "HOMEPREP_WEB_DIR" not in os.environ:
         os.environ["HOMEPREP_WEB_DIR"] = str(_bundle_root() / "web" / "dist")
