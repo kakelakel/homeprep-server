@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from homeprep_server import __version__
 from homeprep_server.api.auth import router as auth_router
+from homeprep_server.api.backups import router as backups_router
 from homeprep_server.api.clients import router as clients_router
 from homeprep_server.api.context import router as context_router
 from homeprep_server.api.errors import install_error_handlers
@@ -34,6 +35,7 @@ app.include_router(auth_router)
 app.include_router(clients_router)
 app.include_router(pairing_router)
 app.include_router(context_router)
+app.include_router(backups_router)
 app.include_router(households_router)
 app.include_router(inventory_router)
 
