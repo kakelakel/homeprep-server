@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ class ConflictError(Exception):
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class HouseholdService:
@@ -88,7 +88,9 @@ class InventoryService:
 
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "container_id" in changes:
-            changes["container_id"] = str(changes["container_id"]) if changes["container_id"] else None
+            container_id = changes["container_id"]
+            changes["container_id"] = str(container_id) if container_id else None
+
         for field, value in changes.items():
             setattr(item, field, value)
 
