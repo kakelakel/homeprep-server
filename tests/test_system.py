@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from homeprep_server.main import app
@@ -23,3 +25,4 @@ def test_system_info() -> None:
     payload = response.json()
     assert payload["name"] == "HomePrep Server"
     assert payload["api_version"] == "v1"
+    assert UUID(payload["server_id"])
