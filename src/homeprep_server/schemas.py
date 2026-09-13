@@ -4,6 +4,31 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class AuthSetup(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=12, max_length=256)
+
+
+class AuthLogin(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class UserRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    username: str
+    role: str
+    created_at: datetime
+
+
+class AuthStatus(BaseModel):
+    setup_required: bool
+    authenticated: bool
+    user: UserRead | None = None
+
+
 class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
