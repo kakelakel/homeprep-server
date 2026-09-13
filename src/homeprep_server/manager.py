@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import re
 import subprocess
 import tkinter as tk
 import urllib.error
@@ -21,6 +23,7 @@ from homeprep_server.standalone_config import (
 )
 
 SERVICE_NAME = "HomePrepServer"
+RELEASE_API = "https://api.github.com/repos/kakelakel/homeprep-server/releases/latest"
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
 
@@ -112,6 +115,31 @@ def _create_local_backup(data_dir: Path) -> Path:
     return Path(result.path)
 
 
+def _version_key(version: str) -> tuple[int, int, int, int]:
+    clean = version.casefold().lstrip("v")
+    numbers = [int(part) for part in re.findall(r"\d+", clean)[:3]]
+    numbers.extend([0] * (3 - len(numbers)))
+    stable = 0 if any(marker in clean for marker in ("dev", "alpha", "beta", "rc")) else 1
+    return numbers[0], numbers[1], numbers[2], stable
+
+
+def _latest_release() -> tuple[str, str] | None:
+    request = urllib.request.Request(
+        RELEASE_API,
+        headers={"User-Agent": f"HomePrepServerManager/{__version__}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
+    tag = str(payload["tag_name"])
+    release_url = str(payload["html_url"])
+    return tag, release_url
+
+
 def open_homeprep_from_config() -> None:
     webbrowser.open(f"http://127.0.0.1:{_configured_port()}")
 
@@ -120,8 +148,8 @@ class ManagerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("HomePrep Server Manager")
-        self.geometry("680x680")
-        self.minsize(620, 620)
+        self.geometry("680x720")
+        self.minsize(620, 650)
         self.data_dir = default_data_dir()
         self.config_data = load_standalone_config(self.data_dir)
 
@@ -345,14 +373,19 @@ class ManagerApp(tk.Tk):
         tools.pack(fill="x", pady=(16, 0))
         ttk.Button(
             tools,
+            text="Check for updates",
+            command=self.check_for_updates,
+        ).pack(side="left")
+        ttk.Button(
+            tools,
             text="Open data folder",
             command=lambda: _open_folder(self.data_dir),
-        ).pack(side="left")
+        ).pack(side="left", padx=8)
         ttk.Button(
             tools,
             text="Open Windows Services",
             command=self.open_services,
-        ).pack(side="left", padx=8)
+        ).pack(side="left")
 
     def current_port(self) -> int:
         try:
@@ -397,6 +430,42 @@ class ManagerApp(tk.Tk):
         messagebox.showinfo(
             "Backup complete",
             f"Backup created successfully:\n\n{archive_path}",
+        )
+
+    def check_for_updates(self) -> None:
+        try:
+            release = _latest_release()
+        except (OSError, urllib.error.URLError, KeyError, ValueError, json.JSONDecodeError) as exc:
+            messagebox.showerror(
+                "Update check failed",
+                f"HomePrep could not check for updates.\n\n{exc}",
+            )
+            return
+
+        if release is None:
+            messagebox.showinfo(
+                "HomePrep updates",
+                "No published HomePrep Server release is available yet.",
+            )
+            return
+
+        latest_version, release_url = release
+        if _version_key(latest_version) > _version_key(__version__):
+            open_release = messagebox.askyesno(
+                "Update available",
+                (
+                    f"Installed: {__version__}\n"
+                    f"Latest: {latest_version}\n\n"
+                    "A newer HomePrep Server release is available. Open the release page?"
+                ),
+            )
+            if open_release:
+                webbrowser.open(release_url)
+            return
+
+        messagebox.showinfo(
+            "HomePrep updates",
+            f"HomePrep Server {__version__} is up to date.",
         )
 
     def save_settings(self) -> None:
