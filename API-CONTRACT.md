@@ -2,7 +2,7 @@
 
 This document defines the initial public API direction for HomePrep Server.
 
-The contract is intentionally conservative: HomePrep clients should be able to understand what server they are connected to, which API version they are using and whether a write conflicted with newer data.
+The contract is intentionally conservative: HomePrep clients should be able to identify the server and their authenticated client context, understand which API version they are using, and avoid silently overwriting newer data.
 
 ## Protocol
 
@@ -72,9 +72,9 @@ This lets clients distinguish:
 - an object that never existed locally
 - an object that was deliberately deleted elsewhere
 
-## Initial system endpoints
+## System and client-context endpoints
 
-The bootstrap server exposes non-sensitive operational endpoints such as:
+The Server exposes non-sensitive operational endpoints:
 
 ```text
 GET /healthz
@@ -82,13 +82,27 @@ GET /readyz
 GET /api/v1/system/info
 ```
 
-`system/info` provides client-useful information such as server product name, server version, API version and server instance ID. It must not expose secrets or household contents.
+`system/info` provides client-useful information such as product name, Server version, API version and Server instance ID. It must not expose secrets or household contents.
+
+After authentication/pairing, clients can verify their effective connection with:
+
+```text
+GET /api/v1/context
+```
+
+The response contains:
+
+- Server ID
+- Server version
+- API version
+- authenticated principal kind, ID, display name and role
+- the active Household ID/name when configured
+
+This endpoint is intended to be a stable post-pairing sanity check for Home Assistant and later Android clients.
 
 ## Current domain endpoints
 
-The first implemented domain slice is Household + Inventory. The MVP server currently enforces one active household per installation.
-
-Current API includes:
+The first implemented domain slice is Household + Inventory. The MVP Server currently enforces one active Household per installation.
 
 ```text
 GET    /api/v1/households
@@ -109,8 +123,6 @@ Additional domains should use the same conventions when introduced.
 
 API errors use a stable JSON envelope rather than FastAPI's default mixed `detail` shapes.
 
-Implemented shape:
-
 ```json
 {
   "error": {
@@ -122,7 +134,7 @@ Implemented shape:
 
 Validation errors include structured details.
 
-Current standard codes include `bad_request`, `authentication_required`, `forbidden`, `not_found`, `conflict`, `validation_error` and `request_error`.
+Current standard codes include `bad_request`, `authentication_required`, `forbidden`, `not_found`, `conflict`, `validation_error` and `request_error`. Feature-specific stable codes may also be returned, such as `write_access_required` and `invalid_pairing_token`.
 
 Human-readable messages may improve over time, but machine-readable codes should remain stable within API v1.
 
@@ -139,7 +151,7 @@ Human Web access uses local user accounts and browser sessions:
 - HttpOnly SameSite cookies
 - logout/session revocation
 
-Machine/device clients use separate bearer credentials. The owner can create, list and revoke them through:
+Machine/device clients use separate bearer credentials. The owner can create, list and revoke credentials through:
 
 ```text
 GET  /api/v1/clients
@@ -160,11 +172,52 @@ This distinction is intentional groundwork for future human roles such as owner/
 
 Home Assistant should use its own revocable client credential rather than reusing a person's Web session.
 
+## Pairing
+
+Normal client onboarding should avoid manually copying a long-lived credential.
+
+The implemented first pairing flow is:
+
+```text
+Authenticated owner
+      ↓
+POST /api/v1/pairing
+      ↓
+short-lived single-use pairing token
+      ↓
+client calls POST /api/v1/pairing/exchange
+      ↓
+permanent revocable client credential
+      ↓
+GET /api/v1/context
+```
+
+Pairing requests currently expire after 10 minutes. Pairing tokens are stored only as hashes and become unusable immediately after a successful exchange.
+
+`POST /api/v1/pairing` requires an authenticated owner/Web session. `POST /api/v1/pairing/exchange` intentionally does not require an existing session because possession of the short-lived pairing token is the bootstrap credential.
+
+This contract is designed first for the Home Assistant config flow and can later be transported through QR-based Android onboarding without inventing another authentication protocol.
+
+## Backup administration API
+
+The initial native backup subsystem exposes owner-only administration endpoints:
+
+```text
+GET  /api/v1/backups
+POST /api/v1/backups
+```
+
+`POST` creates a consistent native Server backup. `GET` lists recognized local backup archives.
+
+Backups are administrative operations rather than normal client/domain writes. Home Assistant and Android client credentials should not automatically receive backup administration rights merely because they have `full_access` to household data.
+
+The portable backup format and offline restore behavior are documented in `BACKUP-RESTORE.md`.
+
 ## Compatibility
 
 During early `0.x` development, the API may evolve. Changes should still be deliberate and documented.
 
-The server should expose enough version information for clients to fail clearly when they are incompatible rather than corrupting data or silently misbehaving.
+The Server should expose enough version information for clients to fail clearly when they are incompatible rather than corrupting data or silently misbehaving.
 
 ## OpenAPI
 
