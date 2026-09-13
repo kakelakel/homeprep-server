@@ -47,6 +47,35 @@ jobs:
         shell: pwsh
         run: pyinstaller --clean --noconfirm packaging/windows/homeprep-server.spec
 
+      - name: Smoke test Windows service
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist\HomePrepServer.exe").Path
+          $ready = $false
+          try {
+            & $exe --install-service
+            & $exe --start-service
+            for ($attempt = 1; $attempt -le 30; $attempt++) {
+              try {
+                $response = Invoke-WebRequest -Uri "http://127.0.0.1:8080/readyz" -UseBasicParsing -TimeoutSec 2
+                if ($response.StatusCode -eq 200) {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                Start-Sleep -Seconds 1
+              }
+            }
+            if (-not $ready) {
+              sc.exe query HomePrepServer
+              throw "HomePrep Windows service did not become ready"
+            }
+          } finally {
+            & $exe --stop-service
+            Start-Sleep -Seconds 1
+            & $exe --remove-service
+          }
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --no-progress -y
