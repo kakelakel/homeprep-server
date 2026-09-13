@@ -5,6 +5,10 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+ClientType = Literal["home_assistant", "android", "web", "other"]
+ClientAccessRole = Literal["full_access", "read_only"]
+
+
 class AuthSetup(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=12, max_length=256)
@@ -32,8 +36,8 @@ class AuthStatus(BaseModel):
 
 class ClientCredentialCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
-    client_type: Literal["home_assistant", "android", "web", "other"] = "other"
-    access_role: Literal["full_access", "read_only"] = "full_access"
+    client_type: ClientType = "other"
+    access_role: ClientAccessRole = "full_access"
 
 
 class ClientCredentialRead(BaseModel):
@@ -50,6 +54,25 @@ class ClientCredentialRead(BaseModel):
 
 class ClientCredentialCreated(ClientCredentialRead):
     token: str
+
+
+class ClientPairingCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    client_type: ClientType = "other"
+    access_role: ClientAccessRole = "full_access"
+
+
+class ClientPairingCreated(BaseModel):
+    id: UUID
+    name: str
+    client_type: str
+    access_role: str
+    pairing_token: str
+    expires_at: datetime
+
+
+class ClientPairingExchange(BaseModel):
+    pairing_token: str = Field(min_length=16, max_length=256)
 
 
 class HouseholdCreate(BaseModel):
