@@ -40,15 +40,23 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Dockerfile and Docker Compose reference deployment with persistent `/data` storage and health check.
 - Pytest coverage for system endpoints and the first Household/Inventory create, list, update, conflict and delete flow.
 - GitHub Actions CI for lint, migration smoke test, tests, Web build and Docker image build.
+- First local authentication layer with one-time owner setup, login, logout and current-user API.
+- Password hashing using Argon2 through `pwdlib`; plaintext passwords are never stored.
+- Opaque random Web sessions stored server-side as SHA-256 token hashes and delivered in HttpOnly SameSite cookies.
+- Household and Inventory APIs now require an authenticated session, while health/readiness remain public.
+- First-run Web setup creates the local administrator before any preparedness data is exposed.
+- Authentication lifecycle tests covering setup, protected endpoints, logout, failed login and successful re-login.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
 - HomePrep Server is explicitly defined as a capability layer rather than a replacement for Home Assistant standalone operation.
 - Docker builds now use a Web build stage and ship one self-contained HomePrep Server image.
+- Native development now defaults to a relative `data/` directory; Docker and appliance deployments can continue to override it with `HOMEPREP_DATA_DIR=/data`.
 
 ### Planned next
+- Package the first Windows-native distribution so end users do not need Python, Node, Git or Docker.
+- Add a Windows installer that initializes the database, runs HomePrep as a background service and opens the Web UI.
 - Harden Household lifecycle and bootstrap behavior for a single-household server.
 - Add clearer API error envelopes and validation behavior.
 - Add Web edit/update flows and richer diagnostics.
-- Prove a full Docker runtime smoke test with the bundled Web client.
-- Then begin the explicit Home Assistant import/bridge path rather than expanding every domain at once.
+- Begin the explicit Home Assistant import/bridge path after the standalone install/auth flow is proven.
