@@ -19,15 +19,22 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - `BACKUP-RESTORE.md` documenting native backup, restore, portability and recovery principles.
 - Initial implementation stack selected: Python, FastAPI, Pydantic, SQLAlchemy 2.x, Alembic and SQLite.
 - Initial Web direction selected: TypeScript, React and Vite, built into the Server distribution for production.
+- First runnable FastAPI application skeleton.
+- `/healthz`, `/readyz` and `/api/v1/system/info` system endpoints.
+- Runtime configuration through `HOMEPREP_*` environment variables.
+- Initial SQLite/SQLAlchemy engine foundation.
+- Initial Alembic migration environment.
+- Dockerfile and Docker Compose reference deployment with persistent `/data` storage and health check.
+- Pytest system endpoint tests and Ruff lint configuration.
+- GitHub Actions CI for lint/tests and Docker image build.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
 - HomePrep Server is explicitly defined as a capability layer rather than a replacement for Home Assistant standalone operation.
 
 ### Planned next
-- Bootstrap the Python/FastAPI project structure and test environment.
-- Add Docker/Compose reference development environment.
-- Add `/healthz`, `/readyz` and server/version identity.
-- Add SQLite persistence and Alembic migrations.
-- Implement the first Household + Inventory vertical slice.
+- Make readiness verify the real database connection.
+- Add the first database migration.
+- Implement Household persistence and server identity.
+- Implement the first Inventory vertical slice.
 - Add a minimal Web/diagnostics client after the API/persistence path is proven.
