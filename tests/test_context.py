@@ -49,7 +49,7 @@ def test_paired_client_can_read_context(client: TestClient) -> None:
         "/api/v1/pairing/exchange",
         json={"pairing_token": pairing.json()["pairing_token"]},
     )
-    assert exchange.status_code == 201
+    assert exchange.status_code == 200
     token = exchange.json()["token"]
 
     context = client.get(
