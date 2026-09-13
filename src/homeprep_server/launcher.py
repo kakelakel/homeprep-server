@@ -54,6 +54,30 @@ def _run_migrations() -> None:
     command.upgrade(config, "head")
 
 
+def _backup_settings() -> tuple[str, int]:
+    data_dir = Path(os.environ["HOMEPREP_DATA_DIR"])
+    config = load_standalone_config(data_dir)
+    return str(config["backup_schedule"]), int(config["backup_retention"])
+
+
+def _start_backup_scheduler(stop_event: threading.Event) -> threading.Thread:
+    from homeprep_server.core.backup_scheduler import run_backup_scheduler
+
+    data_dir = Path(os.environ["HOMEPREP_DATA_DIR"])
+    thread = threading.Thread(
+        target=run_backup_scheduler,
+        kwargs={
+            "stop_event": stop_event,
+            "data_dir": data_dir,
+            "settings_provider": _backup_settings,
+        },
+        name="homeprep-backup-scheduler",
+        daemon=True,
+    )
+    thread.start()
+    return thread
+
+
 def _open_browser_later(url: str) -> None:
     def worker() -> None:
         time.sleep(1.5)
@@ -73,7 +97,13 @@ def _run_foreground(*, open_browser: bool) -> None:
     if open_browser:
         _open_browser_later(f"http://127.0.0.1:{settings.port}")
 
-    uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
+    stop_event = threading.Event()
+    scheduler_thread = _start_backup_scheduler(stop_event)
+    try:
+        uvicorn.run(app, host=settings.host, port=settings.port, log_level="info")
+    finally:
+        stop_event.set()
+        scheduler_thread.join(timeout=2)
 
 
 def _run_service_workload(
@@ -88,6 +118,7 @@ def _run_service_workload(
     from homeprep_server.core.config import settings
     from homeprep_server.main import app
 
+    scheduler_thread = _start_backup_scheduler(stop_event)
     config = uvicorn.Config(
         app,
         host=settings.host,
@@ -113,6 +144,7 @@ def _run_service_workload(
     stop_event.wait()
     server.should_exit = True
     server_thread.join(timeout=20)
+    scheduler_thread.join(timeout=2)
     if server_thread.is_alive():
         server.force_exit = True
         server_thread.join(timeout=5)
