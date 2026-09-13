@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from homeprep_server.api.client_auth import PrincipalDep, WritePrincipalDep
@@ -10,7 +10,7 @@ from homeprep_server.schemas import InventoryCreate, InventoryRead, InventoryUpd
 from homeprep_server.services import ConflictError, InventoryService, NotFoundError
 
 router = APIRouter(prefix="/api/v1/inventory", tags=["inventory"])
-SessionDep = Annotated[Session, get_session]
+SessionDep = Annotated[Session, Depends(get_session)]
 ExpectedRevision = Annotated[int, Query(ge=1)]
 
 
