@@ -51,6 +51,7 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - HomePrep Server Manager for Windows with service status, Web/API reachability, start/stop/restart controls, data-folder access and network settings.
 - Standalone `config.json` support for user-managed bind address and port while explicit `HOMEPREP_*` environment variables retain precedence.
 - Installer shortcuts now resolve the configured port dynamically through HomePrep Server Manager instead of assuming port 8080.
+- Regression coverage for the single-household server lifecycle.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
@@ -58,11 +59,12 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Docker builds now use a Web build stage and ship one self-contained HomePrep Server image.
 - Native development now defaults to a relative `data/` directory; Docker and appliance deployments can continue to override it with `HOMEPREP_DATA_DIR=/data`.
 - Windows standalone installs keep persistent data and configuration under `%ProgramData%\HomePrep` and keep application binaries under Program Files.
+- The MVP server now enforces one active household per installation; attempts to create another return `409 Conflict`.
+- HomePrep Web now reflects the dedicated single-household model instead of exposing a household selector or an "add another household" flow.
 
 ### Planned next
 - Validate the Windows Service + Server Manager flow on real hardware, including reboot persistence and custom-port changes.
 - Extend the standalone manager concept to future standalone platform installers where appropriate.
-- Harden Household lifecycle and bootstrap behavior for a single-household server.
 - Add clearer API error envelopes and validation behavior.
 - Add Web edit/update flows and richer diagnostics.
 - Begin the explicit Home Assistant import/bridge path after the standalone install/auth flow is proven.
