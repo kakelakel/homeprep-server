@@ -52,6 +52,8 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Standalone `config.json` support for user-managed bind address and port while explicit `HOMEPREP_*` environment variables retain precedence.
 - Installer shortcuts now resolve the configured port dynamically through HomePrep Server Manager instead of assuming port 8080.
 - Regression coverage for the single-household server lifecycle.
+- Stable API error envelope with machine-readable error codes and structured validation details.
+- HomePrep Web Inventory editing for name, quantity, unit and category using revision-safe `PATCH` requests.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
@@ -61,10 +63,12 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Windows standalone installs keep persistent data and configuration under `%ProgramData%\HomePrep` and keep application binaries under Program Files.
 - The MVP server now enforces one active household per installation; attempts to create another return `409 Conflict`.
 - HomePrep Web now reflects the dedicated single-household model instead of exposing a household selector or an "add another household" flow.
+- HomePrep Web now reloads Inventory after failed revision-sensitive edits/deletes so stale clients do not continue showing an outdated resource version.
 
 ### Planned next
 - Validate the Windows Service + Server Manager flow on real hardware, including reboot persistence and custom-port changes.
 - Extend the standalone manager concept to future standalone platform installers where appropriate.
-- Add clearer API error envelopes and validation behavior.
-- Add Web edit/update flows and richer diagnostics.
+- Add richer diagnostics around server/client state.
+- Define and implement per-client/device pairing and revocation.
+- Prove native backup/restore for the SQLite-based Server.
 - Begin the explicit Home Assistant import/bridge path after the standalone install/auth flow is proven.
