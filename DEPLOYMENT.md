@@ -9,10 +9,11 @@ The deployment model should remain consistent across Home Assistant and general 
 Priority order:
 
 1. Docker / Docker Compose
-2. Home Assistant App/Add-on
-3. General standalone Docker deployment on NAS/home-server platforms
+2. Native Windows installer
+3. Home Assistant App/Add-on
+4. General standalone deployment on NAS/home-server platforms
 
-The first implementation target is Docker because it gives the project a portable reference runtime that can later be wrapped by Home Assistant packaging.
+Docker remains the portable reference runtime. The native Windows package exists to make self-hosting approachable for users who should not need to understand Python, Node, Git, virtual environments or Docker.
 
 ## Reference Docker deployment
 
@@ -38,6 +39,32 @@ Host
 
 A simple Compose deployment should be sufficient for a normal household installation.
 
+## Native Windows
+
+The intended Windows user experience is:
+
+```text
+HomePrep-Setup.exe
+      ↓
+Install
+      ↓
+HomePrep Server starts
+      ↓
+Browser opens
+      ↓
+Create local administrator
+      ↓
+HomePrep
+```
+
+The packaged application contains the Python runtime dependencies, API, Web UI and database migrations. End users should not need Python, Node, npm, Git or Docker.
+
+Preparedness data is stored separately from the application binaries under `%ProgramData%\HomePrep` so an application reinstall/uninstall does not implicitly delete household data.
+
+The first Windows package binds to `127.0.0.1` by default. LAN exposure must be an explicit later configuration choice rather than an accidental side effect of installation.
+
+The initial installer starts HomePrep after setup and registers it to start when Windows users sign in. A true Windows service is a planned hardening step before declaring the native installer production-ready.
+
 ## Home Assistant App/Add-on
 
 HomePrep Server should later be packaged as a Home Assistant App/Add-on so HAOS/Supervised users can install their own shared HomePrep server without maintaining Docker manually.
@@ -57,8 +84,9 @@ Installing HomePrep Server in Home Assistant must not automatically switch the e
 
 ## Standalone server/NAS
 
-The same container should work on systems such as:
+The same server codebase should work on systems such as:
 
+- Windows PCs/home servers through the native package
 - Linux servers
 - mini PCs
 - home labs
@@ -69,7 +97,7 @@ Platform-specific community packaging can be added later without changing the co
 
 ## Networking
 
-Local-network operation is a fully supported deployment mode.
+Local-network operation is a fully supported deployment mode, but network exposure must be explicit and authenticated.
 
 HomePrep Server does not need to be Internet-accessible to function.
 
@@ -79,7 +107,7 @@ For remote access, the initial project direction is to let the server owner prov
 - Tailscale or similar private overlay network
 - authenticated HTTPS reverse proxy
 
-HomePrep should not encourage exposing an unauthenticated plain-HTTP service directly to the public Internet.
+HomePrep should not encourage exposing a plain-HTTP service directly to the public Internet.
 
 ## HTTPS
 
@@ -87,13 +115,15 @@ The server may initially listen as HTTP inside a trusted local/container network
 
 Native TLS support can be considered later if it materially improves safe deployment, but it should not duplicate mature reverse-proxy tooling without need.
 
+Local username/password authentication protects application access, but plain HTTP does not encrypt credentials or data in transit. Any deployment made reachable beyond localhost should therefore use an appropriate trusted-network or HTTPS design.
+
 ## Persistent storage
 
 All state required to restore a normal HomePrep Server should be kept under documented persistent storage paths.
 
-The application container itself should be replaceable/upgradable without losing household data.
+The application container or executable itself should be replaceable/upgradable without losing household data.
 
-The initial persistent root is conceptually `/data`.
+Docker and appliance deployments use a persistent `/data` root. Native Windows uses `%ProgramData%\HomePrep` by default.
 
 ## Configuration
 
