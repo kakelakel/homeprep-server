@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import zipfile
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from sqlalchemy import text
@@ -244,6 +244,37 @@ def list_backups(destination_dir: Path | None = None) -> list[BackupResult]:
         except (KeyError, ValueError, OSError, zipfile.BadZipFile, json.JSONDecodeError):
             continue
     return results
+
+
+def backup_due(schedule: str, destination_dir: Path | None = None) -> bool:
+    """Return whether a daily/weekly backup is due based on the latest archive."""
+    schedule = schedule.casefold()
+    if schedule == "off":
+        return False
+    interval = timedelta(days=1 if schedule == "daily" else 7)
+    backups = list_backups(destination_dir)
+    if not backups:
+        return True
+    try:
+        latest = datetime.fromisoformat(backups[0].created_at)
+    except ValueError:
+        return True
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=UTC)
+    return _utc_now() - latest >= interval
+
+
+def prune_backups(retention: int, destination_dir: Path | None = None) -> int:
+    """Delete oldest normal backup archives beyond the configured retention count."""
+    if retention < 1:
+        raise ValueError("Backup retention must be at least 1")
+    backup_dir = destination_dir or (Path(settings.data_dir) / "backups")
+    archives = sorted(backup_dir.glob("homeprep-backup-*.zip"), reverse=True)
+    removed = 0
+    for archive_path in archives[retention:]:
+        archive_path.unlink(missing_ok=True)
+        removed += 1
+    return removed
 
 
 def backup_result_dict(result: BackupResult) -> dict[str, str | int]:
