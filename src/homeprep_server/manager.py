@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import ctypes
+import argparse
 import os
 import subprocess
 import tkinter as tk
@@ -44,10 +44,31 @@ def _service_state() -> str:
     return "Starting / stopping"
 
 
-def _run_elevated_service_action(action: str) -> bool:
-    params = f'{action} "{SERVICE_NAME}"'
-    rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", "sc.exe", params, None, 0)
-    return rc > 32
+def _run_elevated_powershell(script: str) -> bool:
+    escaped = script.replace("'", "''")
+    command = (
+        "$p=Start-Process powershell.exe -Verb RunAs -Wait -PassThru "
+        f"-ArgumentList '-NoProfile -WindowStyle Hidden -Command \"{escaped}\"'; "
+        "exit $p.ExitCode"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", command],
+        creationflags=CREATE_NO_WINDOW,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _service_action(action: str) -> bool:
+    if action == "start":
+        script = f"Start-Service -Name '{SERVICE_NAME}' -ErrorAction Stop"
+    elif action == "stop":
+        script = f"Stop-Service -Name '{SERVICE_NAME}' -ErrorAction Stop"
+    elif action == "restart":
+        script = f"Restart-Service -Name '{SERVICE_NAME}' -Force -ErrorAction Stop"
+    else:
+        raise ValueError(f"Unsupported service action: {action}")
+    return _run_elevated_powershell(script)
 
 
 def _server_reachable(port: int) -> bool:
@@ -61,6 +82,14 @@ def _server_reachable(port: int) -> bool:
 def _open_folder(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
     os.startfile(path)  # type: ignore[attr-defined]
+
+
+def _configured_port() -> int:
+    return int(load_standalone_config(default_data_dir()).get("port", DEFAULT_PORT))
+
+
+def open_homeprep_from_config() -> None:
+    webbrowser.open(f"http://127.0.0.1:{_configured_port()}")
 
 
 class ManagerApp(tk.Tk):
@@ -108,9 +137,9 @@ class ManagerApp(tk.Tk):
         buttons = ttk.Frame(status)
         buttons.pack(fill="x", pady=(12, 0))
         ttk.Button(buttons, text="Open HomePrep", command=self.open_homeprep).pack(side="left", padx=(0, 8))
-        ttk.Button(buttons, text="Start", command=lambda: self.service_action("start")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Stop", command=lambda: self.service_action("stop")).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Restart", command=self.restart_service).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Start", command=lambda: self.do_service_action("start")).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Stop", command=lambda: self.do_service_action("stop")).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Restart", command=lambda: self.do_service_action("restart")).pack(side="left", padx=4)
         ttk.Button(buttons, text="Refresh", command=self.refresh_status).pack(side="right")
 
         settings = ttk.LabelFrame(root, text="Network settings", padding=14)
@@ -157,23 +186,14 @@ class ManagerApp(tk.Tk):
     def open_homeprep(self) -> None:
         webbrowser.open(f"http://127.0.0.1:{self.current_port()}")
 
-    def service_action(self, action: str) -> None:
-        if not _run_elevated_service_action(action):
-            messagebox.showerror("HomePrep", f"Could not request permission to {action} the service.")
+    def do_service_action(self, action: str) -> None:
+        if not _service_action(action):
+            messagebox.showerror(
+                "HomePrep",
+                f"Could not {action} HomePrep Server. Administrator permission may have been cancelled.",
+            )
             return
-        self.after(1600, self.refresh_status)
-
-    def restart_service(self) -> None:
-        if _service_state() == "Running":
-            if not _run_elevated_service_action("stop"):
-                return
-            self.after(1800, lambda: self._finish_restart())
-        else:
-            self.service_action("start")
-
-    def _finish_restart(self) -> None:
-        _run_elevated_service_action("start")
-        self.after(1800, self.refresh_status)
+        self.after(900, self.refresh_status)
 
     def save_settings(self) -> None:
         try:
@@ -187,11 +207,14 @@ class ManagerApp(tk.Tk):
             messagebox.showerror("Unable to save", str(exc))
             return
 
-        messagebox.showinfo(
-            "HomePrep",
-            "Settings saved. HomePrep Server will now be restarted.",
-        )
-        self.restart_service()
+        if not _service_action("restart"):
+            messagebox.showwarning(
+                "Settings saved",
+                "Settings were saved, but the server could not be restarted. Restart it from the manager when ready.",
+            )
+            return
+        self.after(900, self.refresh_status)
+        messagebox.showinfo("HomePrep", "Settings saved and HomePrep Server restarted.")
 
     def open_services(self) -> None:
         subprocess.Popen(["services.msc"], creationflags=CREATE_NO_WINDOW)
@@ -200,6 +223,14 @@ class ManagerApp(tk.Tk):
 def main() -> None:
     if os.name != "nt":
         raise SystemExit("HomePrep Server Manager currently requires Windows")
+
+    parser = argparse.ArgumentParser(description="HomePrep Server Manager")
+    parser.add_argument("--open-homeprep", action="store_true")
+    args = parser.parse_args()
+    if args.open_homeprep:
+        open_homeprep_from_config()
+        return
+
     ManagerApp().mainloop()
 
 
