@@ -23,6 +23,14 @@ class HouseholdRepository:
         )
         return self.session.scalar(statement)
 
+    def list_all(self) -> Sequence[HouseholdModel]:
+        statement = (
+            select(HouseholdModel)
+            .where(HouseholdModel.deleted_at.is_(None))
+            .order_by(HouseholdModel.name.asc(), HouseholdModel.id.asc())
+        )
+        return self.session.scalars(statement).all()
+
 
 class InventoryRepository:
     def __init__(self, session: Session):
