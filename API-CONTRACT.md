@@ -120,42 +120,45 @@ Implemented shape:
 }
 ```
 
-Validation errors include structured details:
+Validation errors include structured details.
 
-```json
-{
-  "error": {
-    "code": "validation_error",
-    "message": "Request validation failed",
-    "details": []
-  }
-}
-```
-
-Current standard codes include:
-
-- `bad_request`
-- `authentication_required`
-- `forbidden`
-- `not_found`
-- `conflict`
-- `validation_error`
-- `request_error` as a fallback for other HTTP errors
+Current standard codes include `bad_request`, `authentication_required`, `forbidden`, `not_found`, `conflict`, `validation_error` and `request_error`.
 
 Human-readable messages may improve over time, but machine-readable codes should remain stable within API v1.
 
-## Authentication
+## Authentication and client credentials
 
-HomePrep Server currently provides local owner bootstrap and browser-session authentication:
+HomePrep Server supports two deliberately separate identity paths.
+
+Human Web access uses local user accounts and browser sessions:
 
 - one-time owner setup
 - username/password login
 - Argon2 password hashing
 - opaque server-side sessions
-- HttpOnly SameSite cookies for the Web client
+- HttpOnly SameSite cookies
 - logout/session revocation
 
-Interactive Web sessions are not the future client/device credential model. Home Assistant and Android will receive separate revocable credentials through the pairing model when that contract is implemented.
+Machine/device clients use separate bearer credentials. The owner can create, list and revoke them through:
+
+```text
+GET  /api/v1/clients
+POST /api/v1/clients
+POST /api/v1/clients/{id}/revoke
+```
+
+A newly created client receives its plaintext token **once**. The Server stores only a SHA-256 hash of the token. Revoked credentials are rejected immediately.
+
+Current client types include `home_assistant`, `android`, `web` and `other`.
+
+Client identity is separate from authorization. The first machine access profiles are:
+
+- `full_access` — may read and write protected domain resources
+- `read_only` — may read protected domain resources but receives `403` with `write_access_required` on writes
+
+This distinction is intentional groundwork for future human roles such as owner/editor/viewer in Web/Android without coupling permissions to a particular device type.
+
+Home Assistant should use its own revocable client credential rather than reusing a person's Web session.
 
 ## Compatibility
 
