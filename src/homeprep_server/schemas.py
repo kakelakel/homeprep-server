@@ -83,6 +83,26 @@ class ClientPairingExchange(BaseModel):
     pairing_token: str = Field(min_length=16, max_length=256)
 
 
+class ClientContextPrincipal(BaseModel):
+    kind: str
+    id: UUID
+    name: str
+    role: str
+
+
+class ClientContextHousehold(BaseModel):
+    id: UUID
+    name: str
+
+
+class ClientContext(BaseModel):
+    server_id: UUID
+    server_version: str
+    api_version: str
+    principal: ClientContextPrincipal
+    household: ClientContextHousehold | None
+
+
 class HouseholdCreate(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
