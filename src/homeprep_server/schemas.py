@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -27,6 +28,28 @@ class AuthStatus(BaseModel):
     setup_required: bool
     authenticated: bool
     user: UserRead | None = None
+
+
+class ClientCredentialCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    client_type: Literal["home_assistant", "android", "web", "other"] = "other"
+    access_role: Literal["full_access", "read_only"] = "full_access"
+
+
+class ClientCredentialRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    client_type: str
+    access_role: str
+    created_at: datetime
+    last_seen_at: datetime | None
+    revoked_at: datetime | None
+
+
+class ClientCredentialCreated(ClientCredentialRead):
+    token: str
 
 
 class HouseholdCreate(BaseModel):
