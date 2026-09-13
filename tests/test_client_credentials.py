@@ -121,3 +121,44 @@ def test_read_only_client_cannot_write(client: TestClient) -> None:
     )
     assert denied.status_code == 403
     assert denied.json()["error"]["code"] == "write_access_required"
+
+
+def test_owner_can_pair_home_assistant_with_one_time_token(client: TestClient) -> None:
+    household_id = _setup_owner_and_household(client)
+
+    pairing = client.post(
+        "/api/v1/pairing",
+        json={
+            "name": "Home Assistant - Home",
+            "client_type": "home_assistant",
+            "access_role": "full_access",
+        },
+    )
+    assert pairing.status_code == 201
+    pairing_body = pairing.json()
+    pairing_token = pairing_body["pairing_token"]
+    assert pairing_token
+    assert pairing_body["client_type"] == "home_assistant"
+
+    client.post("/api/v1/auth/logout")
+    exchanged = client.post(
+        "/api/v1/pairing/exchange",
+        json={"pairing_token": pairing_token},
+    )
+    assert exchanged.status_code == 200
+    credential = exchanged.json()
+    assert credential["name"] == "Home Assistant - Home"
+    assert credential["access_role"] == "full_access"
+    assert credential["token"]
+
+    headers = {"Authorization": f"Bearer {credential['token']}"}
+    households = client.get("/api/v1/households", headers=headers)
+    assert households.status_code == 200
+    assert households.json()[0]["id"] == household_id
+
+    reused = client.post(
+        "/api/v1/pairing/exchange",
+        json={"pairing_token": pairing_token},
+    )
+    assert reused.status_code == 401
+    assert reused.json()["error"]["code"] == "invalid_pairing_token"
