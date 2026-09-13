@@ -20,6 +20,11 @@ def create_household(
     return HouseholdService(session).create(payload)
 
 
+@router.get("", response_model=list[HouseholdRead])
+def list_households(session: SessionDep) -> list[HouseholdRead]:
+    return list(HouseholdService(session).list_all())
+
+
 @router.get("/{household_id}", response_model=HouseholdRead)
 def get_household(
     household_id: UUID,
