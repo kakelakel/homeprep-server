@@ -27,6 +27,9 @@ class HouseholdService:
         self.repository = HouseholdRepository(session)
 
     def create(self, payload: HouseholdCreate) -> HouseholdModel:
+        if self.repository.list_all():
+            raise ConflictError("This HomePrep Server already has a household")
+
         household = HouseholdModel(id=str(uuid4()), name=payload.name)
         self.repository.add(household)
         self.session.commit()
