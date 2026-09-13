@@ -21,6 +21,11 @@ def _configure_runtime_paths() -> None:
         else:
             os.environ["HOMEPREP_DATA_DIR"] = str(Path("data").resolve())
 
+    # Alembic connects directly to SQLite before the FastAPI lifespan or
+    # database helper gets a chance to create the persistent data directory.
+    # Ensure it exists before migrations run, especially for native Windows.
+    Path(os.environ["HOMEPREP_DATA_DIR"]).mkdir(parents=True, exist_ok=True)
+
     if os.name == "nt" and "HOMEPREP_HOST" not in os.environ:
         os.environ["HOMEPREP_HOST"] = "127.0.0.1"
 
