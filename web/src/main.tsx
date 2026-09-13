@@ -10,6 +10,19 @@ type SystemInfo = {
   server_id?: string;
 };
 
+type User = {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+};
+
+type AuthStatus = {
+  setup_required: boolean;
+  authenticated: boolean;
+  user: User | null;
+};
+
 type Household = {
   id: string;
   name: string;
@@ -30,6 +43,7 @@ type InventoryItem = {
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     ...init,
   });
@@ -37,12 +51,101 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => ({}));
     throw new Error(body.detail ?? `${response.status} ${response.statusText}`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+function AuthCard({
+  setupRequired,
+  onAuthenticated,
+}: {
+  setupRequired: boolean;
+  onAuthenticated: () => Promise<void>;
+}) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setBusy(true);
+    const form = new FormData(event.currentTarget);
+    const username = String(form.get("username") ?? "").trim();
+    const password = String(form.get("password") ?? "");
+    const confirmPassword = String(form.get("confirmPassword") ?? "");
+
+    if (setupRequired && password !== confirmPassword) {
+      setError("Passwords do not match.");
+      setBusy(false);
+      return;
+    }
+
+    try {
+      await request<User>(setupRequired ? "/api/v1/auth/setup" : "/api/v1/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ username, password }),
+      });
+      await onAuthenticated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="auth-wrap">
+      <div className="card auth-card">
+        <div className="auth-logo">HP</div>
+        <span className="eyebrow">HOME PREP SERVER</span>
+        <h2>{setupRequired ? "Create your administrator" : "Welcome back"}</h2>
+        <p>
+          {setupRequired
+            ? "This account stays on your own HomePrep Server. It protects access to your household preparedness data."
+            : "Sign in to access your HomePrep household."}
+        </p>
+        {error && <div className="error">{error}</div>}
+        <form className="form" onSubmit={submit}>
+          <label className="field">
+            <span>Username</span>
+            <input name="username" autoComplete="username" minLength={3} maxLength={64} required autoFocus />
+          </label>
+          <label className="field">
+            <span>Password</span>
+            <input
+              name="password"
+              type="password"
+              autoComplete={setupRequired ? "new-password" : "current-password"}
+              minLength={setupRequired ? 12 : 1}
+              required
+            />
+          </label>
+          {setupRequired && (
+            <label className="field">
+              <span>Confirm password</span>
+              <input
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                minLength={12}
+                required
+              />
+            </label>
+          )}
+          <button type="submit" disabled={busy}>
+            {busy ? "Please wait…" : setupRequired ? "Create administrator" : "Sign in"}
+          </button>
+        </form>
+        {setupRequired && <small>Use at least 12 characters for the password.</small>}
+      </div>
+    </section>
+  );
 }
 
 function App() {
   const [system, setSystem] = useState<SystemInfo | null>(null);
   const [ready, setReady] = useState(false);
+  const [auth, setAuth] = useState<AuthStatus | null>(null);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [householdId, setHouseholdId] = useState("");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
@@ -59,23 +162,35 @@ function App() {
     setInventory(items);
   }
 
+  async function loadProtectedData() {
+    const householdList = await request<Household[]>("/api/v1/households");
+    setHouseholds(householdList);
+    const stored = localStorage.getItem("homeprep.household_id");
+    const selected =
+      householdList.find((item) => item.id === stored)?.id ?? householdList[0]?.id ?? "";
+    setHouseholdId(selected);
+    if (selected) await loadInventory(selected);
+    else setInventory([]);
+  }
+
   async function bootstrap() {
     setLoading(true);
     setError("");
     try {
-      const [info, readiness, householdList] = await Promise.all([
+      const [info, readiness, authStatus] = await Promise.all([
         request<SystemInfo>("/api/v1/system/info"),
         request<{ status: string }>("/readyz"),
-        request<Household[]>("/api/v1/households"),
+        request<AuthStatus>("/api/v1/auth/status"),
       ]);
       setSystem(info);
       setReady(readiness.status === "ready");
-      setHouseholds(householdList);
-      const stored = localStorage.getItem("homeprep.household_id");
-      const selected =
-        householdList.find((item) => item.id === stored)?.id ?? householdList[0]?.id ?? "";
-      setHouseholdId(selected);
-      if (selected) await loadInventory(selected);
+      setAuth(authStatus);
+      if (authStatus.authenticated) await loadProtectedData();
+      else {
+        setHouseholds([]);
+        setHouseholdId("");
+        setInventory([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to connect to HomePrep Server");
     } finally {
@@ -88,12 +203,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!householdId) return;
+    if (!householdId || !auth?.authenticated) return;
     localStorage.setItem("homeprep.household_id", householdId);
     void loadInventory(householdId).catch((err) => {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     });
-  }, [householdId]);
+  }, [householdId, auth?.authenticated]);
 
   async function createHousehold(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -152,6 +267,34 @@ function App() {
     }
   }
 
+  async function logout() {
+    await request<void>("/api/v1/auth/logout", { method: "POST" });
+    await bootstrap();
+  }
+
+  if (loading && auth === null) {
+    return <div className="boot">Starting HomePrep…</div>;
+  }
+
+  if (auth && !auth.authenticated) {
+    return (
+      <main className="shell">
+        <header className="topbar">
+          <div className="brandmark">HP</div>
+          <div>
+            <h1>HomePrep</h1>
+            <p>Your preparedness. Your server. Your data.</p>
+          </div>
+          <div className={`status ${ready ? "online" : "offline"}`}>
+            <span /> {ready ? "Server online" : "Server unavailable"}
+          </div>
+        </header>
+        {error && <div className="error">{error}</div>}
+        <AuthCard setupRequired={auth.setup_required} onAuthenticated={bootstrap} />
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
       <header className="topbar">
@@ -163,6 +306,7 @@ function App() {
         <div className={`status ${ready ? "online" : "offline"}`}>
           <span /> {ready ? "Server online" : "Server unavailable"}
         </div>
+        <button className="secondary compact" onClick={() => void logout()}>Sign out</button>
       </header>
 
       {error && <div className="error">{error}</div>}
@@ -172,8 +316,8 @@ function App() {
           <span className="eyebrow">SELF-HOSTED HOME PREPAREDNESS</span>
           <h2>{activeHousehold ? activeHousehold.name : "Set up your household"}</h2>
           <p>
-            This is the first HomePrep Web client running against your own HomePrep Server.
-            Everything shown here comes from your server API and SQLite database.
+            HomePrep runs against your own server and SQLite database. Household data remains
+            under your control and access to the Web client is protected by your local account.
           </p>
         </div>
         <div className="server-meta">
@@ -270,7 +414,7 @@ function App() {
       </div>
 
       <footer>
-        <span>HomePrep Server {system?.version ?? ""}</span>
+        <span>HomePrep Server {system?.version ?? ""} · signed in as {auth?.user?.username ?? ""}</span>
         <span>Local-first · self-hosted · no central HomePrep account</span>
       </footer>
     </main>
