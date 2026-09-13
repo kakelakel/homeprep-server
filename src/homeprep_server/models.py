@@ -50,6 +50,19 @@ class ClientCredentialModel(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ClientPairingModel(Base):
+    __tablename__ = "client_pairings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    pairing_token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    client_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    access_role: Mapped[str] = mapped_column(String(32), default="full_access", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class HouseholdModel(Base):
     __tablename__ = "households"
 
