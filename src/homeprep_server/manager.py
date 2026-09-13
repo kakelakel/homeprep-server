@@ -91,6 +91,25 @@ def _configured_port() -> int:
     return int(load_standalone_config(default_data_dir()).get("port", DEFAULT_PORT))
 
 
+def _latest_backup_name(data_dir: Path) -> str:
+    backup_dir = data_dir / "backups"
+    backups = sorted(backup_dir.glob("homeprep-backup-*.zip"), reverse=True)
+    return backups[0].name if backups else "No backups yet"
+
+
+def _create_local_backup(data_dir: Path) -> Path:
+    from homeprep_server.core.backup import create_backup
+    from homeprep_server.core.config import settings
+    from homeprep_server.database import reset_database_state
+
+    settings.data_dir = data_dir
+    settings.database_url = None
+    reset_database_state()
+    result = create_backup(data_dir / "backups")
+    reset_database_state()
+    return Path(result.path)
+
+
 def open_homeprep_from_config() -> None:
     webbrowser.open(f"http://127.0.0.1:{_configured_port()}")
 
@@ -99,13 +118,14 @@ class ManagerApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("HomePrep Server Manager")
-        self.geometry("610x470")
-        self.minsize(560, 430)
+        self.geometry("650x610")
+        self.minsize(600, 560)
         self.data_dir = default_data_dir()
         self.config_data = load_standalone_config(self.data_dir)
 
         self.status_var = tk.StringVar(value="Checking…")
         self.reachable_var = tk.StringVar(value="Checking…")
+        self.backup_var = tk.StringVar(value=_latest_backup_name(self.data_dir))
         self.port_var = tk.StringVar(value=str(self.config_data.get("port", DEFAULT_PORT)))
         self.access_var = tk.StringVar(
             value="LAN" if self.config_data.get("host") == "0.0.0.0" else "Local only"
@@ -245,13 +265,32 @@ class ManagerApp(tk.Tk):
                 "LAN exposes HomePrep on this computer's network interfaces. "
                 "Authentication still applies."
             ),
-            wraplength=390,
+            wraplength=430,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 8))
         ttk.Button(
             settings,
             text="Save settings and restart",
             command=self.save_settings,
         ).pack(anchor="w")
+
+        backups = ttk.LabelFrame(root, text="Backups", padding=14)
+        backups.pack(fill="x", pady=(16, 0))
+        backup_row = ttk.Frame(backups)
+        backup_row.pack(fill="x")
+        ttk.Label(backup_row, text="Latest:").pack(side="left")
+        ttk.Label(backup_row, textvariable=self.backup_var).pack(side="left", padx=(8, 0))
+        backup_buttons = ttk.Frame(backups)
+        backup_buttons.pack(fill="x", pady=(10, 0))
+        ttk.Button(
+            backup_buttons,
+            text="Back up now",
+            command=self.backup_now,
+        ).pack(side="left")
+        ttk.Button(
+            backup_buttons,
+            text="Open backup folder",
+            command=lambda: _open_folder(self.data_dir / "backups"),
+        ).pack(side="left", padx=8)
 
         tools = ttk.Frame(root)
         tools.pack(fill="x", pady=(16, 0))
@@ -279,6 +318,7 @@ class ManagerApp(tk.Tk):
         self.reachable_var.set(
             f"Online at http://127.0.0.1:{port}" if _server_reachable(port) else "Not reachable"
         )
+        self.backup_var.set(_latest_backup_name(self.data_dir))
 
     def open_homeprep(self) -> None:
         webbrowser.open(f"http://127.0.0.1:{self.current_port()}")
@@ -294,6 +334,21 @@ class ManagerApp(tk.Tk):
             )
             return
         self.after(900, self.refresh_status)
+
+    def backup_now(self) -> None:
+        try:
+            archive_path = _create_local_backup(self.data_dir)
+        except Exception as exc:
+            messagebox.showerror(
+                "Backup failed",
+                f"HomePrep could not create a backup.\n\n{exc}",
+            )
+            return
+        self.backup_var.set(archive_path.name)
+        messagebox.showinfo(
+            "Backup complete",
+            f"Backup created successfully:\n\n{archive_path}",
+        )
 
     def save_settings(self) -> None:
         try:
