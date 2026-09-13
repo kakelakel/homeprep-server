@@ -4,7 +4,7 @@
 
 HomePrep Server is the self-hosted data and API layer for the HomePrep ecosystem. It is designed for people who want HomePrep data to remain under their own control while still being able to use multiple clients such as Home Assistant, a web interface and the HomePrep Android app.
 
-HomePrep Server is currently in the architecture/bootstrap phase and is not yet ready for production use.
+HomePrep Server is currently an **experimental development prototype** and is not yet ready for production use.
 
 ## A permanent data-ownership commitment
 
@@ -25,6 +25,48 @@ Read the full commitment in [DATA-OWNERSHIP.md](DATA-OWNERSHIP.md).
 HomePrep Server provides a common self-hosted source of truth without requiring a central HomePrep account or a HomePrep-operated cloud database.
 
 The goal is to make multi-client use possible while preserving the same control users expect from a local-first Home Assistant installation.
+
+## Current prototype
+
+The first vertical slice is now working:
+
+- FastAPI server
+- SQLite persistence
+- Alembic database migrations
+- persistent Server identity
+- Household storage
+- Inventory CRUD with revisions and soft deletion
+- React + TypeScript + Vite HomePrep Web client
+- one Docker image containing API + Web
+- Docker runtime, migration and Web smoke tests in CI
+
+The current Web client can create/select a Household, list Inventory, add Inventory items and soft-delete Inventory items. Authentication, pairing, synchronization and the remaining HomePrep domains are intentionally not implemented yet.
+
+## Experimental quick start
+
+For development/testing on a machine with Docker and Docker Compose:
+
+```bash
+git clone https://github.com/kakelakel/homeprep-server.git
+cd homeprep-server
+docker compose up --build
+```
+
+Then open:
+
+```text
+http://localhost:8080
+```
+
+Persistent development data is written to the local `./data` directory through the Compose volume mapping.
+
+To stop the Server:
+
+```bash
+docker compose down
+```
+
+> **Important:** this is an early development build. Do not expose it directly to the public internet and do not treat it as the only copy of important preparedness data yet.
 
 ## Planned clients
 
@@ -106,7 +148,7 @@ Each repository has its own roadmap and release lifecycle while sharing common H
 
 ## Current status
 
-The current phase is **foundation and architecture**. The first milestone is to establish a stable server contract, development environment and minimal end-to-end path before expanding functionality.
+The current phase is **working prototype / foundation**. The first API → SQLite → Web path is functioning and automatically tested. The next major platform proof is a real self-hosted deployment followed by the explicit Home Assistant import/bridge path.
 
 See [ROADMAP.md](ROADMAP.md) for the current plan, [DATA-OWNERSHIP.md](DATA-OWNERSHIP.md) for the project's permanent ownership commitment and [CHANGELOG.md](CHANGELOG.md) for project updates.
 
