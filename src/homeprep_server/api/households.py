@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from homeprep_server.api.auth import require_user
 from homeprep_server.database import get_session
 from homeprep_server.schemas import HouseholdCreate, HouseholdRead
-from homeprep_server.services import HouseholdService, NotFoundError
+from homeprep_server.services import ConflictError, HouseholdService, NotFoundError
 
 router = APIRouter(
     prefix="/api/v1/households",
@@ -22,7 +22,10 @@ def create_household(
     payload: HouseholdCreate,
     session: SessionDep,
 ) -> HouseholdRead:
-    return HouseholdService(session).create(payload)
+    try:
+        return HouseholdService(session).create(payload)
+    except ConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("", response_model=list[HouseholdRead])
