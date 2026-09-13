@@ -24,6 +24,9 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 [Files]
 Source: "..\..\dist\HomePrepServer.exe"; DestDir: "{app}"; Flags: ignoreversion
 
+[Dirs]
+Name: "{commonappdata}\HomePrep"; Permissions: users-modify
+
 [Icons]
 Name: "{autoprograms}\HomePrep"; Filename: "http://127.0.0.1:8080"
 Name: "{autodesktop}\HomePrep"; Filename: "http://127.0.0.1:8080"; Tasks: desktopicon
