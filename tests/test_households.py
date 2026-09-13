@@ -41,7 +41,10 @@ def test_server_allows_only_one_active_household(client: TestClient) -> None:
         json={"name": "Second household"},
     )
     assert second.status_code == 409
-    assert second.json()["detail"] == "This HomePrep Server already has a household"
+    assert second.json()["error"] == {
+        "code": "conflict",
+        "message": "This HomePrep Server already has a household",
+    }
 
     households = client.get("/api/v1/households")
     assert households.status_code == 200
