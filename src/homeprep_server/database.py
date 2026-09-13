@@ -13,7 +13,11 @@ def get_engine() -> Engine:
     global _engine
     if _engine is None:
         Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
-        connect_args = {"check_same_thread": False} if settings.resolved_database_url.startswith("sqlite") else {}
+        connect_args = (
+            {"check_same_thread": False}
+            if settings.resolved_database_url.startswith("sqlite")
+            else {}
+        )
         _engine = create_engine(
             settings.resolved_database_url,
             connect_args=connect_args,
