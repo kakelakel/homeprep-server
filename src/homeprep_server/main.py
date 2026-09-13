@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from homeprep_server import __version__
 from homeprep_server.api.households import router as households_router
@@ -25,3 +26,6 @@ app = FastAPI(
 app.include_router(system_router)
 app.include_router(households_router)
 app.include_router(inventory_router)
+
+if settings.web_dir.exists():
+    app.mount("/", StaticFiles(directory=settings.web_dir, html=True), name="web")
