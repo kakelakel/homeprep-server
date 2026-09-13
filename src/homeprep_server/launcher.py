@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 import webbrowser
+from collections.abc import Callable
 from pathlib import Path
 
 
@@ -14,12 +15,7 @@ def _bundle_root() -> Path:
 
 
 def _configure_frozen_stdio() -> None:
-    """Provide valid stdio streams for windowed PyInstaller builds.
-
-    PyInstaller sets sys.stdout/sys.stderr to None when the executable is built
-    without a console. Uvicorn's default logging formatter calls isatty() on
-    those streams, so point missing streams at the null device.
-    """
+    """Provide valid stdio streams for windowed PyInstaller builds."""
     if not getattr(sys, "frozen", False):
         return
 
@@ -37,8 +33,6 @@ def _configure_runtime_paths() -> None:
         else:
             os.environ["HOMEPREP_DATA_DIR"] = str(Path("data").resolve())
 
-    # Alembic connects directly to SQLite before the FastAPI lifespan or
-    # database helper gets a chance to create the persistent data directory.
     Path(os.environ["HOMEPREP_DATA_DIR"]).mkdir(parents=True, exist_ok=True)
 
     if os.name == "nt" and "HOMEPREP_HOST" not in os.environ:
@@ -82,7 +76,7 @@ def _run_foreground(*, open_browser: bool) -> None:
 
 def _run_service_workload(
     stop_event: threading.Event,
-    mark_running: callable,
+    mark_running: Callable[[], None],
 ) -> None:
     """Run Uvicorn until the Windows Service Control Manager asks us to stop."""
     _run_migrations()
@@ -126,14 +120,42 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="HomePrep Server")
     parser.add_argument("--open-browser", action="store_true")
     parser.add_argument("--service", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--install-service", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--start-service", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--stop-service", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--remove-service", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     _configure_frozen_stdio()
     _configure_runtime_paths()
 
+    service_action = any(
+        (args.service, args.install_service, args.start_service, args.stop_service, args.remove_service)
+    )
+    if service_action and os.name != "nt":
+        parser.error("Windows service commands are only available on Windows")
+
+    if args.install_service:
+        from homeprep_server.windows_service import install_windows_service
+
+        install_windows_service(sys.executable)
+        return
+    if args.start_service:
+        from homeprep_server.windows_service import start_windows_service
+
+        start_windows_service()
+        return
+    if args.stop_service:
+        from homeprep_server.windows_service import stop_windows_service
+
+        stop_windows_service()
+        return
+    if args.remove_service:
+        from homeprep_server.windows_service import remove_windows_service
+
+        remove_windows_service()
+        return
     if args.service:
-        if os.name != "nt":
-            parser.error("--service is only available on Windows")
         from homeprep_server.windows_service import run_windows_service
 
         run_windows_service(_run_service_workload)
