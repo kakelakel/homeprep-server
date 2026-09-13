@@ -213,7 +213,8 @@ function App() {
   async function createHousehold(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const name = String(form.get("name") ?? "").trim();
     if (!name) return;
     try {
@@ -223,7 +224,7 @@ function App() {
       });
       setHouseholds((current) => [...current, household]);
       setHouseholdId(household.id);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create household");
     }
@@ -233,7 +234,8 @@ function App() {
     event.preventDefault();
     if (!householdId) return;
     setError("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const quantity = Number(form.get("quantity") ?? 1);
     try {
       await request<InventoryItem>("/api/v1/inventory", {
@@ -248,7 +250,7 @@ function App() {
         }),
       });
       await loadInventory(householdId);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add inventory item");
     }
