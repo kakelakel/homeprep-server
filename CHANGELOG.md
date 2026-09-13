@@ -54,6 +54,12 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Regression coverage for the single-household server lifecycle.
 - Stable API error envelope with machine-readable error codes and structured validation details.
 - HomePrep Web Inventory editing for name, quantity, unit and category using revision-safe `PATCH` requests.
+- Revocable per-client credentials with separate client identity, client type, access role, last-seen metadata and hashed bearer tokens.
+- Initial client access roles: `full_access` and `read_only`.
+- Owner-managed client listing, creation and revocation endpoints.
+- One-time client pairing requests with a 10-minute expiry and single-use exchange into a permanent client credential.
+- Pairing flow designed for Home Assistant first and reusable by future QR-based Android onboarding.
+- Client-credential tests covering full-access Home Assistant behavior, read-only clients and credential revocation.
 
 ### Changed
 - README and roadmap now treat user-controlled infrastructure, local-network operation, portability, backup and no mandatory telemetry as architectural constraints rather than optional privacy features.
@@ -64,11 +70,13 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - The MVP server now enforces one active household per installation; attempts to create another return `409 Conflict`.
 - HomePrep Web now reflects the dedicated single-household model instead of exposing a household selector or an "add another household" flow.
 - HomePrep Web now reloads Inventory after failed revision-sensitive edits/deletes so stale clients do not continue showing an outdated resource version.
+- Household and Inventory authorization now accepts either an authenticated Web user or a valid non-revoked client credential; write endpoints reject read-only clients.
+- Backup/restore requirements now explicitly include Server Manager scheduling/retention UX and a versioned portable migration format across supported deployments.
+- Windows standalone update handling is now a product requirement: Server Manager should expose update checking and a safe installer handoff before optional unattended auto-update is enabled.
 
 ### Planned next
-- Validate the Windows Service + Server Manager flow on real hardware, including reboot persistence and custom-port changes.
-- Extend the standalone manager concept to future standalone platform installers where appropriate.
+- Complete and validate the Home Assistant-oriented pairing UX around the new one-time pairing API.
 - Add richer diagnostics around server/client state.
-- Define and implement per-client/device pairing and revocation.
-- Prove native backup/restore for the SQLite-based Server.
-- Begin the explicit Home Assistant import/bridge path after the standalone install/auth flow is proven.
+- Prove native backup/restore for the SQLite-based Server and expose backup administration in Server Manager.
+- Implement safe Windows update checking/installer handoff and later evaluate opt-in automatic updates.
+- Begin the explicit Home Assistant import/bridge path after pairing and backup foundations are proven.
