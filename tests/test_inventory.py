@@ -17,6 +17,11 @@ def client(tmp_path) -> Generator[TestClient, None, None]:
     Base.metadata.create_all(get_engine())
 
     with TestClient(app) as test_client:
+        setup_response = test_client.post(
+            "/api/v1/auth/setup",
+            json={"username": "test-owner", "password": "correct horse battery staple"},
+        )
+        assert setup_response.status_code == 201
         yield test_client
 
     reset_database_state()
