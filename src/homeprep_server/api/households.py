@@ -4,11 +4,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from homeprep_server.api.auth import require_user
 from homeprep_server.database import get_session
 from homeprep_server.schemas import HouseholdCreate, HouseholdRead
 from homeprep_server.services import HouseholdService, NotFoundError
 
-router = APIRouter(prefix="/api/v1/households", tags=["households"])
+router = APIRouter(
+    prefix="/api/v1/households",
+    tags=["households"],
+    dependencies=[Depends(require_user)],
+)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
