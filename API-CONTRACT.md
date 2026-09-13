@@ -51,15 +51,13 @@ The server owns revision increments and authoritative server timestamps.
 
 Writes should not silently overwrite a newer version of an object.
 
-Update/delete requests should include the revision the client believes it is modifying. If that revision is stale, the server should return a conflict response rather than silently applying the change.
-
-Initial direction:
+Update/delete requests include the revision the client believes it is modifying. If that revision is stale, the server returns:
 
 ```text
 409 Conflict
 ```
 
-The response should include enough current resource metadata for the client to refresh or present a conflict.
+Clients should refresh the resource before attempting another write. HomePrep Web already uses this behavior for Inventory editing and deletion.
 
 The exact sync/conflict model may expand later, but safe writes are required before multi-client editing is considered complete.
 
@@ -76,7 +74,7 @@ This lets clients distinguish:
 
 ## Initial system endpoints
 
-The bootstrap server should expose non-sensitive operational endpoints such as:
+The bootstrap server exposes non-sensitive operational endpoints such as:
 
 ```text
 GET /healthz
@@ -84,63 +82,80 @@ GET /readyz
 GET /api/v1/system/info
 ```
 
-`system/info` should provide client-useful information such as:
+`system/info` provides client-useful information such as server product name, server version, API version and server instance ID. It must not expose secrets or household contents.
 
-- server product name
-- server version
-- API version
-- server instance ID
-- database/schema compatibility version where appropriate
+## Current domain endpoints
 
-It must not expose secrets or household contents.
+The first implemented domain slice is Household + Inventory. The MVP server currently enforces one active household per installation.
 
-## First domain endpoints
-
-The first vertical slice should implement Household and Inventory before broadening to every HomePrep domain.
-
-Conceptual first API:
+Current API includes:
 
 ```text
-GET    /api/v1/household
-GET    /api/v1/inventory
+GET    /api/v1/households
+POST   /api/v1/households
+GET    /api/v1/households/{id}
+GET    /api/v1/inventory?household_id={id}
 POST   /api/v1/inventory
 GET    /api/v1/inventory/{id}
-PUT    /api/v1/inventory/{id}
-DELETE /api/v1/inventory/{id}
+PATCH  /api/v1/inventory/{id}
+DELETE /api/v1/inventory/{id}?expected_revision={revision}
 ```
+
+A second active Household creation attempt returns `409 Conflict` during the single-household MVP phase.
 
 Additional domains should use the same conventions when introduced.
 
 ## Error responses
 
-Errors should use a stable JSON structure instead of ad-hoc plain text.
+API errors use a stable JSON envelope rather than FastAPI's default mixed `detail` shapes.
 
-Conceptual shape:
+Implemented shape:
 
 ```json
 {
   "error": {
-    "code": "revision_conflict",
-    "message": "The resource has changed since this client last read it.",
-    "details": {}
+    "code": "conflict",
+    "message": "Revision mismatch: expected 2, current 3"
   }
 }
 ```
 
-Human-readable text may improve over time, but machine-readable error codes should remain stable within an API version.
+Validation errors include structured details:
 
-## Authentication direction
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request validation failed",
+    "details": []
+  }
+}
+```
 
-The final pairing/authentication contract is not yet frozen.
+Current standard codes include:
 
-The architecture expects:
+- `bad_request`
+- `authentication_required`
+- `forbidden`
+- `not_found`
+- `conflict`
+- `validation_error`
+- `request_error` as a fallback for other HTTP errors
 
-- a local server owner/admin bootstrap path
-- per-client or per-device credentials
-- revocable client access
-- distinct credentials for Home Assistant and Android rather than sharing an interactive Web session
+Human-readable messages may improve over time, but machine-readable codes should remain stable within API v1.
 
-Authentication details will be documented before external client implementation is considered stable.
+## Authentication
+
+HomePrep Server currently provides local owner bootstrap and browser-session authentication:
+
+- one-time owner setup
+- username/password login
+- Argon2 password hashing
+- opaque server-side sessions
+- HttpOnly SameSite cookies for the Web client
+- logout/session revocation
+
+Interactive Web sessions are not the future client/device credential model. Home Assistant and Android will receive separate revocable credentials through the pairing model when that contract is implemented.
 
 ## Compatibility
 
