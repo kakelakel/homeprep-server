@@ -41,6 +41,13 @@ type InventoryItem = {
   revision: number;
 };
 
+type ApiErrorBody = {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+};
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -48,8 +55,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.detail ?? `${response.status} ${response.statusText}`);
+    const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
+    throw new Error(body.error?.message ?? `${response.status} ${response.statusText}`);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
@@ -149,6 +156,7 @@ function App() {
   const [households, setHouseholds] = useState<Household[]>([]);
   const [householdId, setHouseholdId] = useState("");
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -226,7 +234,6 @@ function App() {
     setError("");
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
-    const quantity = Number(form.get("quantity") ?? 1);
     try {
       await request<InventoryItem>("/api/v1/inventory", {
         method: "POST",
@@ -235,7 +242,7 @@ function App() {
           name: String(form.get("name") ?? "").trim(),
           category: String(form.get("category") ?? "other"),
           item_type: "consumable",
-          quantity,
+          quantity: Number(form.get("quantity") ?? 1),
           unit: String(form.get("unit") ?? "pcs"),
         }),
       });
@@ -246,6 +253,29 @@ function App() {
     }
   }
 
+  async function updateItem(event: FormEvent<HTMLFormElement>, item: InventoryItem) {
+    event.preventDefault();
+    setError("");
+    const form = new FormData(event.currentTarget);
+    try {
+      await request<InventoryItem>(`/api/v1/inventory/${item.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: String(form.get("name") ?? "").trim(),
+          quantity: Number(form.get("quantity") ?? 0),
+          unit: String(form.get("unit") ?? "pcs"),
+          category: String(form.get("category") ?? "other"),
+          expected_revision: item.revision,
+        }),
+      });
+      setEditingId(null);
+      await loadInventory(householdId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to update inventory item");
+      await loadInventory(householdId).catch(() => undefined);
+    }
+  }
+
   async function removeItem(item: InventoryItem) {
     setError("");
     try {
@@ -253,9 +283,11 @@ function App() {
         `/api/v1/inventory/${item.id}?expected_revision=${item.revision}`,
         { method: "DELETE" },
       );
+      if (editingId === item.id) setEditingId(null);
       await loadInventory(householdId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to remove inventory item");
+      await loadInventory(householdId).catch(() => undefined);
     }
   }
 
@@ -264,19 +296,14 @@ function App() {
     await bootstrap();
   }
 
-  if (loading && auth === null) {
-    return <div className="boot">Starting HomePrep…</div>;
-  }
+  if (loading && auth === null) return <div className="boot">Starting HomePrep…</div>;
 
   if (auth && !auth.authenticated) {
     return (
       <main className="shell">
         <header className="topbar">
           <div className="brandmark">HP</div>
-          <div>
-            <h1>HomePrep</h1>
-            <p>Your preparedness. Your server. Your data.</p>
-          </div>
+          <div><h1>HomePrep</h1><p>Your preparedness. Your server. Your data.</p></div>
           <div className={`status ${ready ? "online" : "offline"}`}>
             <span /> {ready ? "Server online" : "Server unavailable"}
           </div>
@@ -291,10 +318,7 @@ function App() {
     <main className="shell">
       <header className="topbar">
         <div className="brandmark">HP</div>
-        <div>
-          <h1>HomePrep</h1>
-          <p>Your preparedness. Your server. Your data.</p>
-        </div>
+        <div><h1>HomePrep</h1><p>Your preparedness. Your server. Your data.</p></div>
         <div className={`status ${ready ? "online" : "offline"}`}>
           <span /> {ready ? "Server online" : "Server unavailable"}
         </div>
@@ -327,7 +351,6 @@ function App() {
               <h3>{activeHousehold ? "Your household" : "Create your household"}</h3>
             </div>
           </div>
-
           {activeHousehold ? (
             <div className="empty">
               <strong>{activeHousehold.name}</strong><br />
@@ -346,10 +369,7 @@ function App() {
 
         <section className="card inventory-card">
           <div className="section-title">
-            <div>
-              <span className="eyebrow">INVENTORY</span>
-              <h3>Preparedness supplies</h3>
-            </div>
+            <div><span className="eyebrow">INVENTORY</span><h3>Preparedness supplies</h3></div>
             <button className="secondary" onClick={() => void bootstrap()} disabled={loading}>Refresh</button>
           </div>
 
@@ -359,22 +379,38 @@ function App() {
             <div className="empty">No inventory yet. Add the first item below.</div>
           ) : (
             <div className="inventory-list">
-              {inventory.map((item) => (
-                <article className="inventory-row" key={item.id}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <span>{item.category.replaceAll("_", " ")} · revision {item.revision}</span>
-                  </div>
-                  <div className="quantity">{item.quantity} {item.unit}</div>
-                  <button
-                    className="icon-button"
-                    onClick={() => void removeItem(item)}
-                    aria-label={`Remove ${item.name}`}
-                  >
-                    ×
-                  </button>
-                </article>
-              ))}
+              {inventory.map((item) =>
+                editingId === item.id ? (
+                  <form className="inventory-edit" key={item.id} onSubmit={(event) => void updateItem(event, item)}>
+                    <input name="name" defaultValue={item.name} required maxLength={120} />
+                    <input name="quantity" type="number" min="0" step="0.1" defaultValue={item.quantity} required />
+                    <select name="unit" defaultValue={item.unit}>
+                      <option value="pcs">pcs</option><option value="l">L</option><option value="kg">kg</option>
+                    </select>
+                    <select name="category" defaultValue={item.category}>
+                      <option value="food">Food</option><option value="water">Water</option>
+                      <option value="medicine">Medicine</option><option value="power">Power</option>
+                      <option value="lighting">Lighting</option><option value="other">Other</option>
+                    </select>
+                    <div className="edit-actions">
+                      <button type="submit">Save</button>
+                      <button type="button" className="secondary" onClick={() => setEditingId(null)}>Cancel</button>
+                    </div>
+                  </form>
+                ) : (
+                  <article className="inventory-row" key={item.id}>
+                    <div>
+                      <strong>{item.name}</strong>
+                      <span>{item.category.replaceAll("_", " ")} · revision {item.revision}</span>
+                    </div>
+                    <div className="quantity">{item.quantity} {item.unit}</div>
+                    <div className="row-actions">
+                      <button className="secondary compact" onClick={() => setEditingId(item.id)}>Edit</button>
+                      <button className="icon-button" onClick={() => void removeItem(item)} aria-label={`Remove ${item.name}`}>×</button>
+                    </div>
+                  </article>
+                ),
+              )}
             </div>
           )}
 
@@ -382,18 +418,11 @@ function App() {
             <form className="item-form" onSubmit={createItem}>
               <input name="name" placeholder="Item name" required maxLength={120} />
               <input name="quantity" type="number" min="0" step="0.1" defaultValue="1" required />
-              <select name="unit" defaultValue="pcs">
-                <option value="pcs">pcs</option>
-                <option value="l">L</option>
-                <option value="kg">kg</option>
-              </select>
+              <select name="unit" defaultValue="pcs"><option value="pcs">pcs</option><option value="l">L</option><option value="kg">kg</option></select>
               <select name="category" defaultValue="other">
-                <option value="food">Food</option>
-                <option value="water">Water</option>
-                <option value="medicine">Medicine</option>
-                <option value="power">Power</option>
-                <option value="lighting">Lighting</option>
-                <option value="other">Other</option>
+                <option value="food">Food</option><option value="water">Water</option>
+                <option value="medicine">Medicine</option><option value="power">Power</option>
+                <option value="lighting">Lighting</option><option value="other">Other</option>
               </select>
               <button type="submit">Add item</button>
             </form>
@@ -410,7 +439,5 @@ function App() {
 }
 
 createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+  <React.StrictMode><App /></React.StrictMode>,
 );
