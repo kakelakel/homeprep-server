@@ -118,9 +118,36 @@ def _run_service_workload(
         server_thread.join(timeout=5)
 
 
+def _validate_backup(path: str) -> int:
+    from homeprep_server.core.backup import validate_backup
+
+    result = validate_backup(Path(path))
+    if not result.valid:
+        print(result.error or "Backup validation failed", file=sys.stderr)
+        return 1
+    print(
+        f"Valid HomePrep backup: format {result.format_version}, "
+        f"created {result.created_at}, household {result.household_name or 'not configured'}"
+    )
+    return 0
+
+
+def _restore_backup(path: str) -> int:
+    from homeprep_server.core.backup import restore_backup
+
+    result = restore_backup(Path(path), safety_backup=True)
+    print(
+        f"Restored HomePrep backup from {result.created_at}; "
+        "a pre-restore safety backup was created when existing data was present."
+    )
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="HomePrep Server")
     parser.add_argument("--open-browser", action="store_true")
+    parser.add_argument("--validate-backup", metavar="PATH")
+    parser.add_argument("--restore-backup", metavar="PATH")
     parser.add_argument("--service", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--install-service", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--start-service", action="store_true", help=argparse.SUPPRESS)
@@ -130,6 +157,11 @@ def main() -> None:
 
     _configure_frozen_stdio()
     _configure_runtime_paths()
+
+    if args.validate_backup:
+        raise SystemExit(_validate_backup(args.validate_backup))
+    if args.restore_backup:
+        raise SystemExit(_restore_backup(args.restore_backup))
 
     service_action = any(
         (
