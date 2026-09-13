@@ -16,9 +16,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     host: str = "0.0.0.0"
     port: int = 8080
-    data_dir: Path = Path("/data")
+    data_dir: Path = Path("data")
     web_dir: Path = Path("web/dist")
     database_url: str | None = None
+    session_lifetime_days: int = 30
+    secure_cookies: bool = False
 
     @property
     def resolved_database_url(self) -> str:
