@@ -10,6 +10,7 @@ from homeprep_server.api.clients import router as clients_router
 from homeprep_server.api.errors import install_error_handlers
 from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
+from homeprep_server.api.pairing import router as pairing_router
 from homeprep_server.api.system import router as system_router
 from homeprep_server.core.config import settings
 
@@ -30,6 +31,7 @@ install_error_handlers(app)
 app.include_router(system_router)
 app.include_router(auth_router)
 app.include_router(clients_router)
+app.include_router(pairing_router)
 app.include_router(households_router)
 app.include_router(inventory_router)
 
