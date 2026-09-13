@@ -13,6 +13,22 @@ def _bundle_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _configure_frozen_stdio() -> None:
+    """Provide valid stdio streams for windowed PyInstaller builds.
+
+    PyInstaller sets sys.stdout/sys.stderr to None when the executable is built
+    without a console. Uvicorn's default logging formatter calls isatty() on
+    those streams, so point missing streams at the Windows null device.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+
+
 def _configure_runtime_paths() -> None:
     if "HOMEPREP_DATA_DIR" not in os.environ:
         if os.name == "nt":
@@ -56,6 +72,7 @@ def main() -> None:
     parser.add_argument("--open-browser", action="store_true")
     args = parser.parse_args()
 
+    _configure_frozen_stdio()
     _configure_runtime_paths()
     _run_migrations()
 
