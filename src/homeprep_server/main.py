@@ -4,6 +4,8 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from homeprep_server import __version__
+from homeprep_server.api.households import router as households_router
+from homeprep_server.api.inventory import router as inventory_router
 from homeprep_server.api.system import router as system_router
 from homeprep_server.core.config import settings
 
@@ -21,3 +23,5 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(system_router)
+app.include_router(households_router)
+app.include_router(inventory_router)
