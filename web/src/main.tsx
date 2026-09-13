@@ -165,9 +165,7 @@ function App() {
   async function loadProtectedData() {
     const householdList = await request<Household[]>("/api/v1/households");
     setHouseholds(householdList);
-    const stored = localStorage.getItem("homeprep.household_id");
-    const selected =
-      householdList.find((item) => item.id === stored)?.id ?? householdList[0]?.id ?? "";
+    const selected = householdList[0]?.id ?? "";
     setHouseholdId(selected);
     if (selected) await loadInventory(selected);
     else setInventory([]);
@@ -202,14 +200,6 @@ function App() {
     void bootstrap();
   }, []);
 
-  useEffect(() => {
-    if (!householdId || !auth?.authenticated) return;
-    localStorage.setItem("homeprep.household_id", householdId);
-    void loadInventory(householdId).catch((err) => {
-      setError(err instanceof Error ? err.message : "Unable to load inventory");
-    });
-  }, [householdId, auth?.authenticated]);
-
   async function createHousehold(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -222,7 +212,7 @@ function App() {
         method: "POST",
         body: JSON.stringify({ name }),
       });
-      setHouseholds((current) => [...current, household]);
+      setHouseholds([household]);
       setHouseholdId(household.id);
       formElement.reset();
     } catch (err) {
@@ -334,28 +324,24 @@ function App() {
           <div className="section-title">
             <div>
               <span className="eyebrow">HOUSEHOLD</span>
-              <h3>Data owner</h3>
+              <h3>{activeHousehold ? "Your household" : "Create your household"}</h3>
             </div>
           </div>
 
-          {households.length > 0 && (
-            <label className="field">
-              <span>Active household</span>
-              <select value={householdId} onChange={(event) => setHouseholdId(event.target.value)}>
-                {households.map((household) => (
-                  <option key={household.id} value={household.id}>{household.name}</option>
-                ))}
-              </select>
-            </label>
+          {activeHousehold ? (
+            <div className="empty">
+              <strong>{activeHousehold.name}</strong><br />
+              This server is dedicated to one HomePrep household.
+            </div>
+          ) : (
+            <form className="form" onSubmit={createHousehold}>
+              <label className="field">
+                <span>Household name</span>
+                <input name="name" placeholder="My household" required maxLength={120} />
+              </label>
+              <button type="submit">Create household</button>
+            </form>
           )}
-
-          <form className="form" onSubmit={createHousehold}>
-            <label className="field">
-              <span>{households.length ? "Add another household" : "Household name"}</span>
-              <input name="name" placeholder="My household" required maxLength={120} />
-            </label>
-            <button type="submit">Create household</button>
-          </form>
         </section>
 
         <section className="card inventory-card">
@@ -368,7 +354,7 @@ function App() {
           </div>
 
           {!householdId ? (
-            <div className="empty">Create a household to start adding preparedness supplies.</div>
+            <div className="empty">Create your household to start adding preparedness supplies.</div>
           ) : inventory.length === 0 ? (
             <div className="empty">No inventory yet. Add the first item below.</div>
           ) : (
