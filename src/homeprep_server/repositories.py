@@ -1,0 +1,53 @@
+from collections.abc import Sequence
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from homeprep_server.models import HouseholdModel, InventoryItemModel
+
+
+class HouseholdRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, household: HouseholdModel) -> HouseholdModel:
+        self.session.add(household)
+        self.session.flush()
+        self.session.refresh(household)
+        return household
+
+    def get(self, household_id: str) -> HouseholdModel | None:
+        statement = select(HouseholdModel).where(
+            HouseholdModel.id == household_id,
+            HouseholdModel.deleted_at.is_(None),
+        )
+        return self.session.scalar(statement)
+
+
+class InventoryRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, item: InventoryItemModel) -> InventoryItemModel:
+        self.session.add(item)
+        self.session.flush()
+        self.session.refresh(item)
+        return item
+
+    def get(self, item_id: str) -> InventoryItemModel | None:
+        statement = select(InventoryItemModel).where(
+            InventoryItemModel.id == item_id,
+            InventoryItemModel.deleted_at.is_(None),
+        )
+        return self.session.scalar(statement)
+
+    def list_for_household(self, household_id: str) -> Sequence[InventoryItemModel]:
+        statement = (
+            select(InventoryItemModel)
+            .where(
+                InventoryItemModel.household_id == household_id,
+                InventoryItemModel.deleted_at.is_(None),
+            )
+            .order_by(InventoryItemModel.name.asc(), InventoryItemModel.id.asc())
+        )
+        return self.session.scalars(statement).all()
