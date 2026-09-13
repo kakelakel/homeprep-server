@@ -43,9 +43,13 @@ jobs:
           npm install
           npm run build
 
-      - name: Build HomePrepServer.exe
+      - name: Build Windows executables
         shell: pwsh
-        run: pyinstaller --clean --noconfirm packaging/windows/homeprep-server.spec
+        run: |
+          pyinstaller --clean --noconfirm packaging/windows/homeprep-server.spec
+          pyinstaller --clean --noconfirm packaging/windows/homeprep-manager.spec
+          if (-not (Test-Path "dist\HomePrepServer.exe")) { throw "HomePrepServer.exe missing" }
+          if (-not (Test-Path "dist\HomePrepServerManager.exe")) { throw "HomePrepServerManager.exe missing" }
 
       - name: Smoke test Windows service
         shell: pwsh
