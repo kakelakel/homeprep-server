@@ -12,128 +12,223 @@ Self-hosted operation is a permanent architectural commitment. Future optional m
 
 > **Convenience may be centralized. Ownership must not be.**
 
-Every future architecture decision should be checked against this principle. See [DATA-OWNERSHIP.md](DATA-OWNERSHIP.md).
+## Current execution sequence
+
+The current engineering order is deliberately:
+
+1. complete and validate human access control (`owner` / `editor` / `viewer`) and Windows recovery/update foundations
+2. perform a dedicated security and intrusion-resistance hardening pass
+3. align HomePrep Web visually with the established HomePrep Home Assistant theme
+4. expand Server/Web functionality to cover the mature Home Assistant standalone domains and workflows
+5. then complete explicit HA → Server migration, synchronization proofs and Home Assistant App/Add-on packaging against that shared domain model
+
+This sequence avoids rushing synchronization onto an incomplete or weakly hardened Server surface.
+
+Home Assistant remains a trusted paired integration client with its own revocable credential. Human RBAC is for Web and future Android users; HA is not represented as an `owner`/`editor`/`viewer` household user.
 
 ## Phase 1 — Foundation
 
-- Define the server architecture and repository structure.
-- Define the first shared HomePrep data contract.
-- Define API versioning and client compatibility rules.
-- Define authentication, pairing and per-client access.
-- Define backup/restore and migration principles.
-- Define deployment targets for Docker and Home Assistant.
-- Establish development, test and CI workflows.
-- Define security boundaries and safe defaults for local and remote deployments.
-- Ensure core operation has no dependency on HomePrep-operated infrastructure.
+- Define server architecture and repository structure.
+- Define shared HomePrep data contract and API versioning.
+- Define human authentication, machine pairing and per-client access separately.
+- Define backup/restore/migration principles.
+- Establish Docker, Windows and future Home Assistant deployment paths.
+- Establish CI and security boundaries.
+- Keep core operation independent of HomePrep-operated infrastructure.
 
-## Phase 2 — Server MVP
+## Phase 2 — Server MVP and access control
 
-- Start the API service.
-- Add SQLite persistence.
-- Add household-scoped storage.
-- Implement core entities:
-  - Inventory
-  - Containers
-  - Assets
-  - Tasks
-  - Plans
-  - Targets
-  - Shopping List
-- Add schema migrations.
-- Add basic authentication and client registration.
-- Add a minimal HomePrep Web interface.
-- Add health/status endpoints and basic diagnostics.
-- Keep local-network-only deployment fully functional.
+Implemented/under active validation:
 
-## Phase 3 — Import and Home Assistant bridge
+- FastAPI runtime and SQLite persistence
+- Alembic migrations
+- one Household per Server installation
+- first Household + Inventory domain slice
+- local Web authentication
+- human roles: `owner`, `editor`, `viewer`
+- owner-managed user lifecycle and roles
+- separate revocable machine/integration credentials
+- HA-oriented one-time pairing
+- revision-safe writes/conflict handling
+- minimal bundled Web application
+- Docker and native Windows packaging
+- native backup/restore/scheduling
 
-- Add an import path from existing HomePrep Home Assistant storage.
-- Add optional HomePrep Server configuration to the Home Assistant integration.
-- Preserve Home Assistant-only mode.
-- Verify create/update/delete flows in both directions.
-- Verify recurring checks, task relationships and linked entities across the server boundary.
-- Keep migration reversible through practical export/backup paths.
+Role intent:
 
-## Phase 4 — Synchronization
+- **Owner:** normal data + security/server administration
+- **Editor:** normal preparedness data read/write
+- **Viewer:** normal preparedness data read-only
 
-- Add revision-based synchronization.
-- Add tombstone/deletion synchronization.
-- Add client checkpoints/cursors.
-- Add deterministic conflict handling.
-- Add sync diagnostics and client status visibility.
-- Validate mixed-version clients and upgrade paths.
-- Ensure clients can identify exactly which server they are synchronized with.
+Owner-only surfaces include user/role management, client/pairing administration, backup administration and first Household provisioning.
 
-## Phase 5 — Home Assistant App/Add-on
+## Phase 3 — Security and intrusion-resistance hardening
 
-- Package HomePrep Server for Home Assistant OS/Supervised.
-- Provide simple installation and onboarding.
-- Integrate persistent storage correctly with Home Assistant.
-- Support Home Assistant backup workflows where applicable.
-- Add HomePrep-native backup and restore independent of Home Assistant backups.
-- Avoid any requirement for an external HomePrep account during installation or operation.
+Before expanding the Web surface substantially, evaluate and harden the deployment/security model. Planned review areas include:
 
-## Phase 6 — Backup and resilience
+- login throttling / brute-force resistance
+- session lifetime, rotation and revocation policy
+- CSRF protection for browser state-changing requests
+- secure-cookie/HTTPS deployment behavior
+- security headers and browser policy
+- trusted proxy / forwarded-header behavior
+- LAN versus Internet-exposure warnings and safe defaults
+- API request/body limits where appropriate
+- audit/security event logging without leaking secrets
+- dependency and release-artifact supply-chain checks
+- backup/restore/update privilege boundaries
+- safe secret/token handling and redaction
+- threat modeling for Windows, Docker and future HA App/Add-on deployments
 
-- Scheduled local backups.
-- Configurable retention.
-- Manual export/download.
-- Tested restore workflows.
-- Optional external backup targets controlled by the user.
-- Backup integrity checks and clear recovery status.
-- Document disaster recovery and migration between hosts.
-- Add printable/offline household exports so preparedness information remains usable when the server, network or normal automation stack is unavailable.
-- Support print/PDF-friendly current-stock reports grouped by Container/storage location, with quantities, expiry/rotation details and optional useful images.
-- Support printable preparedness checklists and Plans for physical offline use.
+Direct Internet exposure should not be implied safe merely because authentication exists. Initial remote-access guidance remains user-managed VPN/Tailscale or a correctly configured HTTPS reverse proxy.
 
-## Phase 7 — Web application
+## Phase 4 — Web visual alignment
 
-- Expand HomePrep Web from diagnostics/admin UI into a complete client.
-- Responsive inventory and maintenance workflows.
-- Household overview and readiness views.
-- Plans, targets, tasks and shopping workflows.
-- Client/device management.
-- Backup/restore controls.
-- Print/export UI for checklists, current stock and container-grouped inventory catalogs.
-- Make server identity, storage and connection state visible rather than abstracting ownership away.
+Bring HomePrep Web into the established HomePrep visual language from the Home Assistant product while retaining a responsive standalone Web experience.
 
-## Phase 8 — Android readiness
+Goals include:
 
-- Stabilize the public client API used by HomePrep Android.
-- Add secure pairing tokens/QR-based onboarding.
-- Support local-network and user-provided remote endpoints.
-- Document server requirements for mobile access.
-- Add notification/event interfaces where appropriate.
-- Do not make a HomePrep-operated relay mandatory for normal Android use.
+- shared HomePrep visual hierarchy and terminology
+- familiar primary/status/attention/critical semantics
+- mobile-first responsive behavior
+- consistent cards, navigation and readiness presentation
+- accessibility preserved while matching the HA HomePrep identity
+
+This is visual/product alignment, not a requirement that Web mimic Home Assistant itself.
+
+## Phase 5 — Shared HomePrep functionality parity
+
+Use the mature Home Assistant standalone implementation as the domain/workflow reference rather than inventing a second HomePrep product.
+
+Bring shared Server/Web support to:
+
+- Inventory
+- Containers
+- Household Assets
+- Tasks and recurring inspections
+- Preparedness Plans
+- Targets
+- Guidance/profile concepts where they belong in shared data
+- Shopping List and replacement workflows
+- readiness/attention concepts
+- household settings appropriate to shared Server state
+- history/maintenance relationships needed by these domains
+
+Preserve established domain rules such as Task scheduling authority, Container deletion semantics, stable IDs, revisions, schema versions and tombstones.
+
+HA-specific Lovelace, notifications, automations and integration UX remain in Home Assistant rather than being cloned into Server.
+
+## Phase 6 — Import and Home Assistant bridge
+
+Once enough of the shared model exists:
+
+- explicit import from existing HomePrep HA storage
+- preview/validation before switching modes
+- preserve IDs, relationships and valid sync metadata
+- clear transformed/skipped/rejected reporting
+- preserve Home Assistant-only mode
+- rollback/retry path during beta
+- optional Server configuration in the HA integration
+
+## Phase 7 — Synchronization
+
+- revision-based synchronization
+- tombstone/deletion synchronization
+- client checkpoints/cursors
+- deterministic conflict handling
+- sync diagnostics/client status
+- mixed-version compatibility tests
+- prove create/update/delete flows in both directions
+
+Do not call synchronization stable until deletion, stale writes, offline/reconnect and upgrade cases are proven.
+
+## Phase 8 — Home Assistant App/Add-on
+
+Package the same HomePrep Server runtime for Home Assistant OS/Supervised:
+
+- simple installation/onboarding
+- persistent storage
+- clear network model
+- HA backup compatibility where useful
+- HomePrep-native backup/restore remains available
+- no external HomePrep account required
+
+## Phase 9 — Backup, portability and offline resilience
+
+Continue maturing the already implemented native recovery foundation:
+
+- scheduled local backups and retention
+- durable backup success/failure history
+- tested cross-version and cross-deployment restore
+- manual export/download
+- optional external targets controlled by the user
+- disaster-recovery documentation
+- trusted update handoff with pre-upgrade backup
+
+Portable migration should support compatible moves such as Windows ↔ Docker ↔ future HA Add-on without artificial lock-in.
+
+Also provide offline/paper preparedness outputs:
+
+- printable current Inventory/stock
+- grouping by Container/storage location
+- quantities and expiry/rotation details
+- printable Plans/checklists
+- optional useful images where they improve identification/action
+
+The purpose is resilience when normal HomePrep/HA/network access is unavailable.
+
+## Phase 10 — Complete Web application
+
+As shared domains land, Web should become a complete standalone HomePrep client with:
+
+- household/readiness overview
+- responsive Inventory/Container/Asset maintenance workflows
+- Tasks, Plans, Targets and Shopping workflows
+- owner user/access administration
+- client/device administration
+- backup/status administration
+- print/export UI
+- visible Server identity/storage/connection state
+
+## Phase 11 — Android readiness
+
+- stabilize public user/client API
+- local-network and user-provided remote endpoint support
+- human login/roles against the same Server authorization model
+- secure local credential/session storage
+- server identity verification
+- offline/cache behavior later
+- notifications/events where appropriate
+- no mandatory HomePrep relay
+
+Android has its own product roadmap; printable/paper-output work is intentionally not an Android requirement.
 
 ## Deployment targets
 
-Priority order:
+First-class directions:
 
 1. Docker / Docker Compose
-2. Home Assistant App/Add-on
-3. General standalone Docker deployment on NAS/home servers
-
-Additional packaging can follow based on real demand.
+2. native Windows standalone
+3. Home Assistant App/Add-on using the same runtime
+4. compatible NAS/general self-hosting where practical
 
 ## Storage direction
 
-SQLite is the initial database target because HomePrep Server primarily serves one household and should be easy to operate, inspect and back up. Additional database backends may be considered later if real use cases require them.
-
-Regardless of backend, the database remains part of the user's deployment rather than becoming a mandatory central HomePrep datastore.
+SQLite remains the initial database because HomePrep is primarily a modest single-household workload and should remain simple to operate and recover. Other databases may be considered only if real needs justify them.
 
 ## Non-negotiable architecture constraints
 
 - No mandatory HomePrep cloud account for self-hosted operation.
 - No mandatory central HomePrep database for core household data.
 - No mandatory telemetry for core operation.
-- No intentional lock-in that prevents practical backup, restore or migration.
-- No future mobile/web client may silently move private household data away from the server selected by the user.
-- Optional hosted services must coexist with the self-hosted path rather than replace it.
+- No intentional lock-in preventing practical backup/restore/migration.
+- No future Web/mobile client may silently move private household data away from the user's selected Server.
+- Optional hosted services must coexist with self-hosting rather than replace it.
+- Home Assistant standalone remains a complete valid HomePrep mode.
 
-## Not a goal for the initial server
+## Not an initial goal
 
-The first releases are not intended to become a general-purpose storage, messaging or social platform. The server should remain focused on HomePrep data and workflows.
+HomePrep Server is not a general-purpose storage, messaging or social platform. Keep attack surface and product scope centered on HomePrep data/workflows.
 
 ## Related projects
 
