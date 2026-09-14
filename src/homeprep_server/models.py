@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -77,6 +77,23 @@ class HouseholdModel(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class HouseholdProfileModel(Base):
+    __tablename__ = "household_profiles"
+
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), primary_key=True
+    )
+    country_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    adults: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    children: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pets: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    preparedness_days: Mapped[int] = mapped_column(Integer, nullable=False, default=7)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+
+
 class ContainerModel(Base):
     __tablename__ = "containers"
 
@@ -143,13 +160,68 @@ class TaskModel(Base):
     last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_due_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     reminder_before_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     completion_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     schema_version: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TargetModel(Base):
+    __tablename__ = "targets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    target_type: Mapped[str] = mapped_column(String(32), nullable=False, default="quantity")
+    matcher: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    minimum_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    target_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    current_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    requirements: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    completed_requirement_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    priority: Mapped[str] = mapped_column(String(32), nullable=False, default="normal")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, default="custom")
+    source_profile_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_recommendation_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    source_profile_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PlanModel(Base):
+    __tablename__ = "plans"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    plan_type: Mapped[str] = mapped_column(String(32), nullable=False, default="other")
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meeting_point: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    checklist: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    review_interval_months: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_review_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
