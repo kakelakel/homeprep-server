@@ -18,7 +18,7 @@ The current engineering order is deliberately:
 
 1. complete and validate human access control (`owner` / `editor` / `viewer`) and Windows recovery/update foundations
 2. perform a dedicated security and intrusion-resistance hardening pass
-3. align HomePrep Web visually with the established HomePrep Home Assistant theme
+3. align HomePrep Web visually with the established HomePrep Home Assistant theme and side-panel information architecture
 4. expand Server/Web functionality to cover the mature Home Assistant standalone domains and workflows
 5. then complete explicit HA → Server migration, synchronization proofs and Home Assistant App/Add-on packaging against that shared domain model
 
@@ -86,15 +86,33 @@ Direct Internet exposure should not be implied safe merely because authenticatio
 
 Bring HomePrep Web into the established HomePrep visual language from the Home Assistant product while retaining a responsive standalone Web experience.
 
+The standalone Web client should feel like the HomePrep side-panel experience brought outside Home Assistant rather than a generic server-admin dashboard.
+
+Primary navigation direction:
+
+- Home / readiness overview
+- Inventory
+- Containers
+- Assets
+- Tasks
+- Plans
+- Targets
+- Shopping
+- owner-only Access Control / administration surfaces
+
+The Home view should progressively gain the same operational character as the HA product: readiness meters, attention state, next actions, expiring/overdue lists, container/resource summaries and concise household status.
+
 Goals include:
 
 - shared HomePrep visual hierarchy and terminology
 - familiar primary/status/attention/critical semantics
+- horizontal navigation suitable for desktop and mobile
+- dedicated pages rather than putting every workflow on one dashboard
 - mobile-first responsive behavior
-- consistent cards, navigation and readiness presentation
+- consistent cards, meters, lists and readiness presentation
 - accessibility preserved while matching the HA HomePrep identity
 
-This is visual/product alignment, not a requirement that Web mimic Home Assistant itself.
+This is visual/product alignment, not a requirement that Web mimic Home Assistant chrome itself.
 
 ## Phase 5 — Shared HomePrep functionality parity
 
@@ -116,7 +134,17 @@ Bring shared Server/Web support to:
 
 Preserve established domain rules such as Task scheduling authority, Container deletion semantics, stable IDs, revisions, schema versions and tombstones.
 
-HA-specific Lovelace, notifications, automations and integration UX remain in Home Assistant rather than being cloned into Server.
+HA-specific Lovelace, automations and integration UX remain in Home Assistant rather than being cloned into Server. Notification behavior is split deliberately: HA mode continues using Home Assistant notification services, while standalone Server/Web should gain its own server-side notification center plus optional user-owned outbound channels.
+
+### Standalone notification direction
+
+For Server/Web mode, planned notification layers are:
+
+1. **HomePrep notification inbox** stored and displayed by the user's own Server/Web client.
+2. **Optional SMTP email delivery** configured by the Server owner using credentials for a mail server/account they control.
+3. Potential later Web Push/browser delivery after the security, key-management and deployment implications are reviewed.
+
+No HomePrep-operated notification relay is required for core operation. SMTP credentials/settings must be treated as sensitive Server secrets and must not be exposed through normal client APIs, logs or backups without deliberate policy.
 
 ## Phase 6 — Import and Home Assistant bridge
 
@@ -181,10 +209,11 @@ The purpose is resilience when normal HomePrep/HA/network access is unavailable.
 
 As shared domains land, Web should become a complete standalone HomePrep client with:
 
-- household/readiness overview
-- responsive Inventory/Container/Asset maintenance workflows
+- household/readiness overview with meters, attention queues and next actions
+- responsive Inventory/Container/Asset maintenance workflows on dedicated pages
 - Tasks, Plans, Targets and Shopping workflows
-- owner user/access administration
+- server-owned notification inbox and optional SMTP delivery configuration
+- owner user/access administration on a dedicated page
 - client/device administration
 - backup/status administration
 - print/export UI
