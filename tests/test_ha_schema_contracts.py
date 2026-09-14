@@ -4,6 +4,8 @@ The HA standalone integration is the canonical HomePrep domain contract. These t
 make accidental field loss visible before sync work can ship.
 """
 
+# ruff: noqa: I001
+
 from homeprep_server.models import (
     AssetModel,
     ContainerModel,
