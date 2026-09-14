@@ -5,6 +5,12 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class UserRole(StrEnum):
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
 class ClientType(StrEnum):
     HOME_ASSISTANT = "home_assistant"
     ANDROID = "android"
@@ -34,6 +40,19 @@ class UserRead(BaseModel):
     username: str
     role: str
     created_at: datetime
+    disabled_at: datetime | None = None
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    password: str = Field(min_length=12, max_length=256)
+    role: UserRole = UserRole.VIEWER
+
+
+class UserUpdate(BaseModel):
+    role: UserRole | None = None
+    password: str | None = Field(default=None, min_length=12, max_length=256)
+    disabled: bool | None = None
 
 
 class AuthStatus(BaseModel):
