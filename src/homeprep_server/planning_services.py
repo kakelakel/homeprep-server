@@ -69,7 +69,10 @@ class HouseholdProfileService:
                 raise ConflictError("Household profile does not exist yet")
             profile = HouseholdProfileModel(household_id=household_key)
             self.session.add(profile)
-        elif payload.expected_revision is not None and profile.revision != payload.expected_revision:
+        elif (
+            payload.expected_revision is not None
+            and profile.revision != payload.expected_revision
+        ):
             raise ConflictError(
                 "Revision mismatch: expected "
                 f"{payload.expected_revision}, current {profile.revision}"
@@ -151,9 +154,11 @@ class TargetService:
     def update(self, target_id: UUID, payload: TargetUpdate) -> TargetModel:
         target = self.get(target_id)
         if target.revision != payload.expected_revision:
-            raise ConflictError(
-                f"Revision mismatch: expected {payload.expected_revision}, current {target.revision}"
+            message = (
+                "Revision mismatch: expected "
+                f"{payload.expected_revision}, current {target.revision}"
             )
+            raise ConflictError(message)
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "target_type" in changes and changes["target_type"] is not None:
             target_type_value = payload.target_type
@@ -204,7 +209,13 @@ class PlanService:
         self.containers = ContainerRepository(session)
         self.assets = AssetRepository(session)
 
-    def _validate_link(self, household_id: str, repository, raw_id: UUID | str, label: str) -> str:
+    def _validate_link(
+        self,
+        household_id: str,
+        repository,
+        raw_id: UUID | str,
+        label: str,
+    ) -> str:
         linked = repository.get(str(raw_id))
         if linked is None or linked.household_id != household_id:
             raise NotFoundError(f"{label} not found in this household")
@@ -229,15 +240,30 @@ class PlanService:
                     "completed": bool(item.get("completed", False)),
                     "last_confirmed_at": last_confirmed,
                     "linked_inventory_item_ids": [
-                        self._validate_link(household_id, self.inventory, value, "Inventory item")
+                        self._validate_link(
+                            household_id,
+                            self.inventory,
+                            value,
+                            "Inventory item",
+                        )
                         for value in item.get("linked_inventory_item_ids", [])
                     ],
                     "linked_container_ids": [
-                        self._validate_link(household_id, self.containers, value, "Container")
+                        self._validate_link(
+                            household_id,
+                            self.containers,
+                            value,
+                            "Container",
+                        )
                         for value in item.get("linked_container_ids", [])
                     ],
                     "linked_asset_ids": [
-                        self._validate_link(household_id, self.assets, value, "Asset")
+                        self._validate_link(
+                            household_id,
+                            self.assets,
+                            value,
+                            "Asset",
+                        )
                         for value in item.get("linked_asset_ids", [])
                     ],
                 }
@@ -287,7 +313,9 @@ class PlanService:
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "plan_type" in changes and changes["plan_type"] is not None:
             plan_type_value = payload.plan_type
-            changes["plan_type"] = plan_type_value.value if plan_type_value is not None else None
+            changes["plan_type"] = (
+                plan_type_value.value if plan_type_value is not None else None
+            )
         if "checklist" in changes and changes["checklist"] is not None:
             changes["checklist"] = self._normalize_checklist(
                 plan.household_id, changes["checklist"]
