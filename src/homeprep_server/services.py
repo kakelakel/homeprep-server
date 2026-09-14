@@ -464,6 +464,11 @@ class InventoryService:
             next_check_at=payload.next_check_at,
             notes=payload.notes,
             container_id=self._validate_container(household_id, payload.container_id),
+            image_id=payload.image_id,
+            image_token=payload.image_token,
+            image_content_type=payload.image_content_type,
+            image_filename=payload.image_filename,
+            schema_version=4,
         )
         self.repository.add(item)
         self.session.commit()
@@ -495,6 +500,7 @@ class InventoryService:
             )
         for field, value in changes.items():
             setattr(item, field, value)
+        item.schema_version = 4
         item.revision += 1
         item.updated_at = utc_now()
         self.session.commit()
