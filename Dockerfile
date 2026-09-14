@@ -1,8 +1,11 @@
 FROM node:22-alpine AS web-builder
 
-WORKDIR /web
-COPY web/package.json web/tsconfig.json web/tsconfig.node.json web/vite.config.ts web/index.html ./
-COPY web/src ./src
+RUN apk add --no-cache python3
+WORKDIR /build
+COPY scripts ./scripts
+COPY web ./web
+RUN python3 scripts/sync_brand_assets.py
+WORKDIR /build/web
 RUN npm install && npm run build
 
 FROM python:3.12-slim
@@ -16,7 +19,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE alembic.ini ./
 COPY src ./src
 COPY migrations ./migrations
-COPY --from=web-builder /web/dist ./web/dist
+COPY --from=web-builder /build/web/dist ./web/dist
 
 RUN pip install --no-cache-dir .
 
