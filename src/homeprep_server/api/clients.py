@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,6 @@ from homeprep_server.schemas import (
     ClientCredentialCreated,
     ClientCredentialRead,
 )
-from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/clients", tags=["clients"])
 SessionDep = Annotated[Session, Depends(get_session)]
