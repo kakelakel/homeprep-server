@@ -24,6 +24,7 @@ from homeprep_server.api.targets import router as targets_router
 from homeprep_server.api.tasks import router as tasks_router
 from homeprep_server.api.users import router as users_router
 from homeprep_server.core.config import settings
+from homeprep_server.core.web_security import WebSecurityMiddleware
 
 
 @asynccontextmanager
@@ -38,6 +39,7 @@ app = FastAPI(
     description="Self-hosted server for the HomePrep ecosystem.",
     lifespan=lifespan,
 )
+app.add_middleware(WebSecurityMiddleware)
 install_error_handlers(app)
 app.include_router(system_router)
 app.include_router(auth_router)
