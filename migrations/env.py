@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 
 from homeprep_server.core.config import settings
 from homeprep_server.models import Base
+from homeprep_server.operations import NotificationModel, ShoppingItemModel  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.resolved_database_url)
