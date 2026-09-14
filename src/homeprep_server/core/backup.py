@@ -72,13 +72,16 @@ def _snapshot_sqlite(destination: Path) -> None:
         raise RuntimeError("Native backup currently supports SQLite installations only")
 
     raw_connection = engine.raw_connection()
+    target: sqlite3.Connection | None = None
     try:
         source = raw_connection.driver_connection
         if not isinstance(source, sqlite3.Connection):
             raise RuntimeError("Unable to access the SQLite connection for backup")
-        with sqlite3.connect(destination) as target:
-            source.backup(target)
+        target = sqlite3.connect(destination)
+        source.backup(target)
     finally:
+        if target is not None:
+            target.close()
         raw_connection.close()
 
 
@@ -163,8 +166,11 @@ def validate_backup(archive_path: Path) -> BackupValidation:
             with tempfile.TemporaryDirectory(prefix="homeprep-validate-") as temp_dir:
                 database_path = Path(temp_dir) / "homeprep.db"
                 database_path.write_bytes(archive.read("homeprep.db"))
-                with sqlite3.connect(database_path) as connection:
+                connection = sqlite3.connect(database_path)
+                try:
                     integrity = connection.execute("PRAGMA integrity_check").fetchone()
+                finally:
+                    connection.close()
                 if integrity != ("ok",):
                     raise ValueError("SQLite integrity check failed")
 
