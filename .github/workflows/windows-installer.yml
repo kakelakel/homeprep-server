@@ -28,7 +28,12 @@ jobs:
         run: |
           $path = "src/homeprep_server/__init__.py"
           $version = "0.1.${env:GITHUB_RUN_NUMBER}"
-          Set-Content -Path $path -Value "\"\"\"HomePrep Server package.\"\"\"`n`n__version__ = \"$version\"`n"
+          @(
+            '"""HomePrep Server package."""'
+            ''
+            "__version__ = `"$version`""
+          ) | Set-Content -Path $path -Encoding utf8
+          Get-Content -Path $path
 
       - name: Set up Python
         uses: actions/setup-python@v5
