@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from homeprep_server.models import HouseholdProfileModel, PlanModel, TargetModel
@@ -30,6 +32,14 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, dict):
+        return dict(value)
+    raise TypeError(f"Expected mapping/model, got {type(value).__name__}")
+
+
 class HouseholdProfileService:
     def __init__(self, session: Session):
         self.session = session
@@ -53,11 +63,12 @@ class HouseholdProfileService:
         if self.households.get(household_key) is None:
             raise NotFoundError("Household not found")
         profile = self.repository.get(household_key)
-        if profile is None:
+        creating = profile is None
+        if creating:
             if payload.expected_revision is not None:
                 raise ConflictError("Household profile does not exist yet")
             profile = HouseholdProfileModel(household_id=household_key)
-            self.repository.add(profile)
+            self.session.add(profile)
         elif payload.expected_revision is not None and profile.revision != payload.expected_revision:
             raise ConflictError(
                 "Revision mismatch: expected "
@@ -68,10 +79,8 @@ class HouseholdProfileService:
         changes["country_code"] = country_code.upper() if country_code else None
         for field, value in changes.items():
             setattr(profile, field, value)
-        if profile.created_at is None:
-            profile.created_at = utc_now()
         profile.updated_at = utc_now()
-        if payload.expected_revision is not None:
+        if not creating:
             profile.revision += 1
         self.session.commit()
         self.session.refresh(profile)
@@ -84,8 +93,8 @@ class TargetService:
         self.households = HouseholdRepository(session)
         self.repository = TargetRepository(session)
 
-    def _normalize_requirements(self, requirements) -> list[dict]:
-        return [requirement.model_dump(mode="json") for requirement in requirements]
+    def _normalize_requirements(self, requirements: list[Any]) -> list[dict[str, Any]]:
+        return [_as_dict(requirement) for requirement in requirements]
 
     def _validate_numeric_target(self, target_type: str, matcher: dict) -> None:
         if target_type in {"quantity", "count"} and not matcher:
@@ -147,7 +156,10 @@ class TargetService:
             )
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "target_type" in changes and changes["target_type"] is not None:
-            changes["target_type"] = changes["target_type"].value
+            target_type_value = payload.target_type
+            changes["target_type"] = (
+                target_type_value.value if target_type_value is not None else None
+            )
         if "requirements" in changes and changes["requirements"] is not None:
             changes["requirements"] = self._normalize_requirements(changes["requirements"])
         target_type = changes.get("target_type", target.target_type)
@@ -156,8 +168,9 @@ class TargetService:
         requirements = changes.get("requirements", target.requirements)
         valid_ids = {item["id"] for item in requirements}
         if "completed_requirement_ids" in changes:
+            completed = changes["completed_requirement_ids"] or []
             changes["completed_requirement_ids"] = [
-                value for value in changes["completed_requirement_ids"] if value in valid_ids
+                value for value in completed if value in valid_ids
             ]
         for field, value in changes.items():
             setattr(target, field, value)
@@ -191,7 +204,7 @@ class PlanService:
         self.containers = ContainerRepository(session)
         self.assets = AssetRepository(session)
 
-    def _validate_link(self, household_id: str, repository, raw_id: UUID, label: str) -> str:
+    def _validate_link(self, household_id: str, repository, raw_id: UUID | str, label: str) -> str:
         linked = repository.get(str(raw_id))
         if linked is None or linked.household_id != household_id:
             raise NotFoundError(f"{label} not found in this household")
@@ -200,32 +213,32 @@ class PlanService:
     def _normalize_checklist(
         self,
         household_id: str,
-        checklist: list[PlanChecklistItem],
-    ) -> list[dict]:
-        result: list[dict] = []
-        for item in checklist:
+        checklist: list[PlanChecklistItem | dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for raw_item in checklist:
+            item = _as_dict(raw_item)
+            last_confirmed = item.get("last_confirmed_at")
+            if isinstance(last_confirmed, datetime):
+                last_confirmed = last_confirmed.isoformat()
             result.append(
                 {
-                    "id": item.id or str(uuid4()),
-                    "label": item.label,
-                    "description": item.description,
-                    "completed": item.completed,
-                    "last_confirmed_at": (
-                        item.last_confirmed_at.isoformat()
-                        if item.last_confirmed_at is not None
-                        else None
-                    ),
+                    "id": item.get("id") or str(uuid4()),
+                    "label": item["label"],
+                    "description": item.get("description"),
+                    "completed": bool(item.get("completed", False)),
+                    "last_confirmed_at": last_confirmed,
                     "linked_inventory_item_ids": [
                         self._validate_link(household_id, self.inventory, value, "Inventory item")
-                        for value in item.linked_inventory_item_ids
+                        for value in item.get("linked_inventory_item_ids", [])
                     ],
                     "linked_container_ids": [
                         self._validate_link(household_id, self.containers, value, "Container")
-                        for value in item.linked_container_ids
+                        for value in item.get("linked_container_ids", [])
                     ],
                     "linked_asset_ids": [
                         self._validate_link(household_id, self.assets, value, "Asset")
-                        for value in item.linked_asset_ids
+                        for value in item.get("linked_asset_ids", [])
                     ],
                 }
             )
@@ -273,7 +286,8 @@ class PlanService:
             )
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "plan_type" in changes and changes["plan_type"] is not None:
-            changes["plan_type"] = changes["plan_type"].value
+            plan_type_value = payload.plan_type
+            changes["plan_type"] = plan_type_value.value if plan_type_value is not None else None
         if "checklist" in changes and changes["checklist"] is not None:
             changes["checklist"] = self._normalize_checklist(
                 plan.household_id, changes["checklist"]
