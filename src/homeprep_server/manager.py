@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -50,15 +51,20 @@ def _service_state() -> str:
     return "Starting / stopping"
 
 
+def _encode_powershell_script(script: str) -> str:
+    return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+
+
 def _run_elevated_powershell_code(script: str) -> int:
-    escaped = script.replace("'", "''")
+    encoded = _encode_powershell_script(script)
     command = (
         "$p=Start-Process powershell.exe -Verb RunAs -Wait -PassThru "
-        f"-ArgumentList '-NoProfile -WindowStyle Hidden -Command \"{escaped}\"'; "
+        "-ArgumentList @('-NoProfile','-NonInteractive','-WindowStyle','Hidden',"
+        f"'-EncodedCommand','{encoded}'); "
         "exit $p.ExitCode"
     )
     result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command", command],
+        ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", command],
         creationflags=CREATE_NO_WINDOW,
         check=False,
     )
