@@ -24,6 +24,7 @@ from homeprep_server.api.shopping import router as shopping_router
 from homeprep_server.api.system import router as system_router
 from homeprep_server.api.targets import router as targets_router
 from homeprep_server.api.tasks import router as tasks_router
+from homeprep_server.api.taxonomy import router as taxonomy_router
 from homeprep_server.api.users import router as users_router
 from homeprep_server.core.config import settings
 from homeprep_server.core.web_security import WebSecurityMiddleware
@@ -52,6 +53,7 @@ app.include_router(context_router)
 app.include_router(backups_router)
 app.include_router(households_router)
 app.include_router(household_profile_router)
+app.include_router(taxonomy_router)
 app.include_router(containers_router)
 app.include_router(assets_router)
 app.include_router(tasks_router)
