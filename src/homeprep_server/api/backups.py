@@ -1,28 +1,10 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
-
-from homeprep_server.api.auth import CurrentUserDep
+from homeprep_server.api.authz import OwnerDep
 from homeprep_server.core.backup import create_backup, list_backups
-from homeprep_server.models import UserModel
 from homeprep_server.schemas import BackupRead
 
+from fastapi import APIRouter, status
+
 router = APIRouter(prefix="/api/v1/backups", tags=["backups"])
-
-
-def require_owner(user: CurrentUserDep) -> UserModel:
-    if user.role != "owner":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "owner_required",
-                "message": "Owner access is required for backup administration",
-            },
-        )
-    return user
-
-
-OwnerDep = Annotated[UserModel, Depends(require_owner)]
 
 
 @router.get("", response_model=list[BackupRead])
