@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,6 @@ from homeprep_server.schemas import (
     ClientPairingCreated,
     ClientPairingExchange,
 )
-from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/pairing", tags=["pairing"])
 SessionDep = Annotated[Session, Depends(get_session)]
