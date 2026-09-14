@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from homeprep_server.api.auth import get_optional_user
+from homeprep_server.api.authz import EDITOR_ROLE, OWNER_ROLE
 from homeprep_server.core.security import hash_client_token
 from homeprep_server.database import get_session
 from homeprep_server.models import ClientCredentialModel, UserModel, utc_now
@@ -79,10 +80,8 @@ PrincipalDep = Annotated[RequestPrincipal, Depends(require_principal)]
 
 def require_write_principal(principal: PrincipalDep) -> RequestPrincipal:
     can_write = (
-        principal.kind == "user" and principal.role in {"owner", "editor"}
-    ) or (
-        principal.kind == "client" and principal.role == "full_access"
-    )
+        principal.kind == "user" and principal.role in {OWNER_ROLE, EDITOR_ROLE}
+    ) or (principal.kind == "client" and principal.role == "full_access")
     if not can_write:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
