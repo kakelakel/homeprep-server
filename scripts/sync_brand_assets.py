@@ -12,12 +12,15 @@ import urllib.request
 from pathlib import Path
 
 BRAND_REF = "9e4254e59382ffb9c665960110d4bcc1b113b87f"
-BRAND_BASE = f"https://raw.githubusercontent.com/kakelakel/homeprep/{BRAND_REF}/custom_components/homeprep/brand"
+BRAND_BASE = (
+    "https://raw.githubusercontent.com/kakelakel/homeprep/"
+    f"{BRAND_REF}/custom_components/homeprep/brand"
+)
 
 
 def download(url: str, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 - pinned GitHub source
+    with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310
         destination.write_bytes(response.read())
 
 
@@ -45,7 +48,15 @@ def sync_windows(root: Path) -> None:
         icon.save(
             assets / "homeprep.ico",
             format="ICO",
-            sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+            sizes=[
+                (16, 16),
+                (24, 24),
+                (32, 32),
+                (48, 48),
+                (64, 64),
+                (128, 128),
+                (256, 256),
+            ],
         )
         icon.resize((55, 55), Image.Resampling.LANCZOS).convert("RGB").save(
             assets / "wizard-small.bmp",
@@ -65,7 +76,11 @@ def sync_windows(root: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--windows", action="store_true", help="Also generate Windows installer assets")
+    parser.add_argument(
+        "--windows",
+        action="store_true",
+        help="Also generate Windows installer assets",
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     sync_web(root)
