@@ -18,6 +18,7 @@ from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
 from homeprep_server.api.pairing import router as pairing_router
 from homeprep_server.api.plans import router as plans_router
+from homeprep_server.api.readiness import router as readiness_router
 from homeprep_server.api.system import router as system_router
 from homeprep_server.api.targets import router as targets_router
 from homeprep_server.api.tasks import router as tasks_router
@@ -53,6 +54,7 @@ app.include_router(tasks_router)
 app.include_router(targets_router)
 app.include_router(plans_router)
 app.include_router(guidance_router)
+app.include_router(readiness_router)
 app.include_router(inventory_router)
 
 if settings.web_dir.exists():
