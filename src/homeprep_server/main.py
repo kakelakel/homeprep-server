@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from homeprep_server import __version__
+from homeprep_server.api.assets import router as assets_router
 from homeprep_server.api.auth import router as auth_router
 from homeprep_server.api.backups import router as backups_router
 from homeprep_server.api.clients import router as clients_router
@@ -15,6 +16,7 @@ from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
 from homeprep_server.api.pairing import router as pairing_router
 from homeprep_server.api.system import router as system_router
+from homeprep_server.api.tasks import router as tasks_router
 from homeprep_server.api.users import router as users_router
 from homeprep_server.core.config import settings
 
@@ -41,6 +43,8 @@ app.include_router(context_router)
 app.include_router(backups_router)
 app.include_router(households_router)
 app.include_router(containers_router)
+app.include_router(assets_router)
+app.include_router(tasks_router)
 app.include_router(inventory_router)
 
 if settings.web_dir.exists():
