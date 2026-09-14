@@ -76,18 +76,24 @@ Type: filesandordirs; Name: "{app}"
 procedure InitializeWizard;
 var
   InfoLabel: TNewStaticText;
+  FieldTop: Integer;
 begin
   InfoLabel := TNewStaticText.Create(WizardForm);
   InfoLabel.Parent := WizardForm.SelectDirPage;
   InfoLabel.Left := WizardForm.SelectDirLabel.Left;
-  InfoLabel.Top := WizardForm.SelectDirLabel.Top + WizardForm.SelectDirLabel.Height + ScaleY(8);
-  InfoLabel.Width := WizardForm.SelectDirPage.Width - InfoLabel.Left - ScaleX(24);
-  InfoLabel.Height := ScaleY(42);
+  InfoLabel.Top := WizardForm.SelectDirLabel.Top + WizardForm.SelectDirLabel.Height + ScaleY(10);
+  InfoLabel.Width := WizardForm.DirEdit.Left + WizardForm.DirEdit.Width - InfoLabel.Left;
+  InfoLabel.Height := ScaleY(58);
   InfoLabel.WordWrap := True;
   InfoLabel.Caption :=
-    'HomePrep Server is self-contained. Python, Node.js and other development ' +
-    'runtimes are already bundled. Household data and backups are kept in ' +
-    '%ProgramData%\HomePrep and are preserved across upgrades.';
+    'HomePrep Server is self-contained — Python, Node.js and other development ' +
+    'runtimes are already bundled.' + #13#10 +
+    'Household data and backups are stored separately in %ProgramData%\HomePrep ' +
+    'and are preserved across upgrades.';
+
+  FieldTop := InfoLabel.Top + InfoLabel.Height + ScaleY(10);
+  WizardForm.DirEdit.Top := FieldTop;
+  WizardForm.DirBrowseButton.Top := FieldTop;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
