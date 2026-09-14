@@ -36,20 +36,29 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Prepare HomePrep brand assets
+        run: python scripts/sync_brand_assets.py
       - name: Install
+        working-directory: web
         run: npm install
       - name: Build
+        working-directory: web
         run: npm run build
+      - name: Verify brand assets bundled
+        run: |
+          test -f web/dist/homeprep-icon.png
+          test -f web/dist/homeprep-logo.png
 
   docker:
     runs-on: ubuntu-latest
@@ -73,6 +82,8 @@ jobs:
       - name: Verify bundled Web client
         run: |
           curl --fail --silent http://127.0.0.1:8080/ | grep -q '<div id="root"></div>'
+          curl --fail --silent http://127.0.0.1:8080/homeprep-icon.png >/dev/null
+          curl --fail --silent http://127.0.0.1:8080/homeprep-logo.png >/dev/null
       - name: Stop container
         if: always()
         run: docker stop homeprep-server-test || true
