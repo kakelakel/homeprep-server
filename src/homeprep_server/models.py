@@ -98,6 +98,61 @@ class ContainerModel(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class AssetModel(Base):
+    __tablename__ = "assets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    asset_type: Mapped[str] = mapped_column(String(32), nullable=False, default="other")
+    location: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class TaskModel(Base):
+    __tablename__ = "tasks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    task_kind: Mapped[str] = mapped_column(String(32), nullable=False, default="general")
+    category: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    linked_item_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    linked_container_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    linked_asset_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    recurrence_type: Mapped[str] = mapped_column(String(16), nullable=False, default="months")
+    recurrence_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    reschedule_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="completion")
+    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_due_at: Mapped[date | None] = mapped_column(Date, nullable=True)
+    reminder_before_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    completion_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class InventoryItemModel(Base):
     __tablename__ = "inventory_items"
 
