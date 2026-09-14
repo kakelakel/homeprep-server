@@ -6,7 +6,11 @@ from sqlalchemy import update as sqlalchemy_update
 from sqlalchemy.orm import Session
 
 from homeprep_server.models import ContainerModel, HouseholdModel, InventoryItemModel
-from homeprep_server.repositories import ContainerRepository, HouseholdRepository, InventoryRepository
+from homeprep_server.repositories import (
+    ContainerRepository,
+    HouseholdRepository,
+    InventoryRepository,
+)
 from homeprep_server.schemas import (
     ContainerCreate,
     ContainerUpdate,
@@ -91,9 +95,11 @@ class ContainerService:
     def update(self, container_id: UUID, payload: ContainerUpdate) -> ContainerModel:
         container = self.get(container_id)
         if container.revision != payload.expected_revision:
-            raise ConflictError(
-                f"Revision mismatch: expected {payload.expected_revision}, current {container.revision}"
+            message = (
+                "Revision mismatch: expected "
+                f"{payload.expected_revision}, current {container.revision}"
             )
+            raise ConflictError(message)
         changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
         if "container_type" in changes and changes["container_type"] is not None:
             changes["container_type"] = changes["container_type"].value
@@ -115,14 +121,17 @@ class ContainerService:
         container.deleted_at = now
         container.updated_at = now
         container.revision += 1
-        # Preserve Inventory: deleting a Container only unassigns its contents.
         self.session.execute(
             sqlalchemy_update(InventoryItemModel)
             .where(
                 InventoryItemModel.container_id == str(container_id),
                 InventoryItemModel.deleted_at.is_(None),
             )
-            .values(container_id=None, updated_at=now, revision=InventoryItemModel.revision + 1)
+            .values(
+                container_id=None,
+                updated_at=now,
+                revision=InventoryItemModel.revision + 1,
+            )
         )
         self.session.commit()
         self.session.refresh(container)
@@ -136,7 +145,11 @@ class InventoryService:
         self.households = HouseholdRepository(session)
         self.containers = ContainerRepository(session)
 
-    def _validate_container(self, household_id: str, container_id: UUID | None) -> str | None:
+    def _validate_container(
+        self,
+        household_id: str,
+        container_id: UUID | None,
+    ) -> str | None:
         if container_id is None:
             return None
         container = self.containers.get(str(container_id))
