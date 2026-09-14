@@ -1,5 +1,6 @@
 #define MyAppName "HomePrep Server"
 #define MyAppVersion "0.1.0-dev0"
+#define MyAppVersionInfo "0.1.0.0"
 #define MyAppPublisher "HomePrep"
 #define MyAppURL "https://github.com/kakelakel/homeprep-server"
 #define MyAppExeName "HomePrepServer.exe"
@@ -14,7 +15,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-VersionInfoVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppVersionInfo}
 VersionInfoProductName={#MyAppName}
 VersionInfoDescription=Self-hosted HomePrep Server and Web application
 DefaultDirName={autopf}\HomePrep
