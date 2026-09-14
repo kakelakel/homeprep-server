@@ -9,17 +9,24 @@ from starlette.responses import JSONResponse, Response
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
-def _same_origin(request: Request) -> bool:
+def _cross_site_browser_request(request: Request) -> bool:
+    fetch_site = request.headers.get("sec-fetch-site", "").casefold()
+    if fetch_site == "cross-site":
+        return True
+
     origin = request.headers.get("origin")
-    if not origin:
-        referer = request.headers.get("referer")
-        if not referer:
-            return False
-        parsed = urlsplit(referer)
-        origin = f"{parsed.scheme}://{parsed.netloc}"
-    parsed_origin = urlsplit(origin)
-    request_host = request.headers.get("host", "")
-    return parsed_origin.netloc.casefold() == request_host.casefold()
+    if origin:
+        parsed_origin = urlsplit(origin)
+        request_host = request.headers.get("host", "")
+        return parsed_origin.netloc.casefold() != request_host.casefold()
+
+    referer = request.headers.get("referer")
+    if referer:
+        parsed_referer = urlsplit(referer)
+        request_host = request.headers.get("host", "")
+        return parsed_referer.netloc.casefold() != request_host.casefold()
+
+    return False
 
 
 class WebSecurityMiddleware(BaseHTTPMiddleware):
@@ -31,7 +38,7 @@ class WebSecurityMiddleware(BaseHTTPMiddleware):
             and request.method.upper() in UNSAFE_METHODS
             and has_web_session
             and not bearer
-            and not _same_origin(request)
+            and _cross_site_browser_request(request)
         ):
             return JSONResponse(
                 status_code=403,
