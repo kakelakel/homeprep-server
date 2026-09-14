@@ -23,6 +23,15 @@ class ClientAccessRole(StrEnum):
     READ_ONLY = "read_only"
 
 
+class ContainerType(StrEnum):
+    BAG = "bag"
+    BOX_CRATE = "box_crate"
+    WATER_CONTAINER = "water_container"
+    CABINET_STORAGE = "cabinet_storage"
+    VEHICLE_STORAGE = "vehicle_storage"
+    OTHER = "other"
+
+
 class AuthSetup(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=12, max_length=256)
@@ -139,6 +148,47 @@ class HouseholdRead(BaseModel):
 
     id: UUID
     name: str
+    created_at: datetime
+    updated_at: datetime
+    revision: int
+    schema_version: int
+    deleted_at: datetime | None
+
+
+class ContainerCreate(BaseModel):
+    household_id: UUID
+    name: str = Field(min_length=1, max_length=120)
+    container_type: ContainerType = ContainerType.OTHER
+    location: str | None = Field(default=None, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    last_checked_at: datetime | None = None
+    next_check_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+
+
+class ContainerUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    container_type: ContainerType | None = None
+    location: str | None = Field(default=None, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    last_checked_at: datetime | None = None
+    next_check_at: datetime | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+    expected_revision: int = Field(ge=1)
+
+
+class ContainerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    household_id: UUID
+    name: str
+    container_type: str
+    location: str | None
+    description: str | None
+    last_checked_at: datetime | None
+    next_check_at: datetime | None
+    notes: str | None
     created_at: datetime
     updated_at: datetime
     revision: int
