@@ -28,7 +28,12 @@ def upgrade() -> None:
         sa.Column("linked_asset_id", sa.String(length=36), nullable=True),
         sa.Column("recurrence_type", sa.String(length=16), nullable=False, server_default="months"),
         sa.Column("recurrence_interval", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("reschedule_mode", sa.String(length=16), nullable=False, server_default="completion"),
+        sa.Column(
+            "reschedule_mode",
+            sa.String(length=16),
+            nullable=False,
+            server_default="completion",
+        ),
         sa.Column("last_completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("next_due_at", sa.Date(), nullable=True),
         sa.Column("reminder_before_days", sa.Integer(), nullable=False, server_default="0"),
