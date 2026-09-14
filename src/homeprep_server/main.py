@@ -12,10 +12,13 @@ from homeprep_server.api.clients import router as clients_router
 from homeprep_server.api.containers import router as containers_router
 from homeprep_server.api.context import router as context_router
 from homeprep_server.api.errors import install_error_handlers
+from homeprep_server.api.household_profile import router as household_profile_router
 from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
 from homeprep_server.api.pairing import router as pairing_router
+from homeprep_server.api.plans import router as plans_router
 from homeprep_server.api.system import router as system_router
+from homeprep_server.api.targets import router as targets_router
 from homeprep_server.api.tasks import router as tasks_router
 from homeprep_server.api.users import router as users_router
 from homeprep_server.core.config import settings
@@ -42,9 +45,12 @@ app.include_router(pairing_router)
 app.include_router(context_router)
 app.include_router(backups_router)
 app.include_router(households_router)
+app.include_router(household_profile_router)
 app.include_router(containers_router)
 app.include_router(assets_router)
 app.include_router(tasks_router)
+app.include_router(targets_router)
+app.include_router(plans_router)
 app.include_router(inventory_router)
 
 if settings.web_dir.exists():
