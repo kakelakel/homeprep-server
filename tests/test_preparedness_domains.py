@@ -47,7 +47,10 @@ def test_profile_guidance_targets_and_readiness(client: TestClient) -> None:
         },
     )
     assert profile.status_code == 200
+    assert profile.json()["id"] == household_id
+    assert profile.json()["household_id"] == household_id
     assert profile.json()["country_code"] == "SE"
+    assert profile.json()["schema_version"] == 2
 
     guidance = client.get(f"/api/v1/guidance/{household_id}")
     assert guidance.status_code == 200
