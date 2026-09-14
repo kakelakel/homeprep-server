@@ -12,6 +12,10 @@ a = Analysis(
         (str(root / "web" / "dist"), "web/dist"),
         (str(root / "migrations"), "migrations"),
         (str(root / "alembic.ini"), "."),
+        (
+            str(root / "src" / "homeprep_server" / "recommendations"),
+            "homeprep_server/recommendations",
+        ),
     ],
     hiddenimports=[
         "uvicorn.logging",
