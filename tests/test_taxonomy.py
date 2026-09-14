@@ -1,3 +1,5 @@
+# ruff: noqa: I001
+
 from fastapi.testclient import TestClient
 
 from homeprep_server.main import app
