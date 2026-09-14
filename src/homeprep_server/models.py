@@ -1,6 +1,6 @@
 from datetime import UTC, date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -157,7 +157,9 @@ class TaskModel(Base):
     recurrence_type: Mapped[str] = mapped_column(String(16), nullable=False, default="months")
     recurrence_interval: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     reschedule_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="completion")
-    last_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     next_due_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     reminder_before_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
@@ -215,7 +217,9 @@ class PlanModel(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     checklist: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
     review_interval_months: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     next_review_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
