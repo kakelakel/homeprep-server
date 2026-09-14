@@ -7,6 +7,7 @@ on:
     paths:
       - "src/**"
       - "web/**"
+      - "scripts/**"
       - "migrations/**"
       - "alembic.ini"
       - "pyproject.toml"
@@ -59,7 +60,11 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pyinstaller
+          python -m pip install . pyinstaller pillow
+
+      - name: Prepare HomePrep brand assets
+        shell: pwsh
+        run: python scripts/sync_brand_assets.py --windows
 
       - name: Build Web client
         shell: pwsh
