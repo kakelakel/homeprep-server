@@ -14,6 +14,7 @@ from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
 from homeprep_server.api.pairing import router as pairing_router
 from homeprep_server.api.system import router as system_router
+from homeprep_server.api.users import router as users_router
 from homeprep_server.core.config import settings
 
 
@@ -32,6 +33,7 @@ app = FastAPI(
 install_error_handlers(app)
 app.include_router(system_router)
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(clients_router)
 app.include_router(pairing_router)
 app.include_router(context_router)
