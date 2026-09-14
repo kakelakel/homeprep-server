@@ -1,4 +1,7 @@
+from collections import defaultdict, deque
 from datetime import timedelta
+from threading import Lock
+from time import monotonic
 from typing import Annotated
 from uuid import uuid4
 
@@ -20,10 +23,45 @@ from homeprep_server.schemas import AuthLogin, AuthSetup, AuthStatus, UserRead
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 SessionDep = Annotated[Session, Depends(get_session)]
 SESSION_COOKIE = "homeprep_session"
+LOGIN_WINDOW_SECONDS = 10 * 60
+LOGIN_MAX_FAILURES = 8
+_LOGIN_FAILURES: dict[str, deque[float]] = defaultdict(deque)
+_LOGIN_LOCK = Lock()
 
 
 def _normalize_username(username: str) -> str:
     return username.strip().casefold()
+
+
+def _login_key(request: Request, username: str) -> str:
+    host = request.client.host if request.client else "unknown"
+    return f"{host}:{username}"
+
+
+def _prune_failures(values: deque[float], now: float) -> None:
+    while values and now - values[0] > LOGIN_WINDOW_SECONDS:
+        values.popleft()
+
+
+def _is_login_blocked(key: str) -> bool:
+    now = monotonic()
+    with _LOGIN_LOCK:
+        values = _LOGIN_FAILURES[key]
+        _prune_failures(values, now)
+        return len(values) >= LOGIN_MAX_FAILURES
+
+
+def _record_login_failure(key: str) -> None:
+    now = monotonic()
+    with _LOGIN_LOCK:
+        values = _LOGIN_FAILURES[key]
+        _prune_failures(values, now)
+        values.append(now)
+
+
+def _clear_login_failures(key: str) -> None:
+    with _LOGIN_LOCK:
+        _LOGIN_FAILURES.pop(key, None)
 
 
 def _set_session_cookie(response: Response, token: str) -> None:
@@ -34,7 +72,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
         max_age=max_age,
         httponly=True,
         secure=settings.secure_cookies,
-        samesite="lax",
+        samesite="strict",
         path="/",
     )
 
@@ -134,26 +172,37 @@ def setup_owner(payload: AuthSetup, response: Response, session: SessionDep) -> 
 
 
 @router.post("/login", response_model=UserRead)
-def login(payload: AuthLogin, response: Response, session: SessionDep) -> UserRead:
+def login(
+    payload: AuthLogin,
+    request: Request,
+    response: Response,
+    session: SessionDep,
+) -> UserRead:
     username = _normalize_username(payload.username)
+    login_key = _login_key(request, username)
+    if _is_login_blocked(login_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed sign-in attempts. Try again later.",
+            headers={"Retry-After": str(LOGIN_WINDOW_SECONDS)},
+        )
+
     user = session.scalar(select(UserModel).where(UserModel.username == username))
-    if user is None or user.disabled_at is not None:
+    valid_password = False
+    if user is not None and user.disabled_at is None:
+        try:
+            valid_password = verify_password(payload.password, user.password_hash)
+        except Exception:
+            valid_password = False
+
+    if user is None or user.disabled_at is not None or not valid_password:
+        _record_login_failure(login_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password",
         )
 
-    try:
-        valid_password = verify_password(payload.password, user.password_hash)
-    except Exception:
-        valid_password = False
-
-    if not valid_password:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid username or password",
-        )
-
+    _clear_login_failures(login_key)
     token = _create_session(session, user)
     _set_session_cookie(response, token)
     return UserRead.model_validate(user)
@@ -173,7 +222,7 @@ def logout(request: Request, response: Response, session: SessionDep) -> None:
             auth_session.revoked_at = utc_now()
             session.commit()
 
-    response.delete_cookie(SESSION_COOKIE, path="/")
+    response.delete_cookie(SESSION_COOKIE, path="/", samesite="strict")
 
 
 @router.get("/me", response_model=UserRead)
