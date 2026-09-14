@@ -7,7 +7,7 @@ block_cipher = None
 brand_icon = root / "packaging" / "windows" / "assets" / "homeprep.ico"
 
 a = Analysis(
-    [str(root / "src" / "homeprep_server" / "manager.py")],
+    [str(root / "src" / "homeprep_server" / "manager_entry.py")],
     pathex=[str(root / "src")],
     binaries=[],
     datas=[],
