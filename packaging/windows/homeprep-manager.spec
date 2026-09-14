@@ -4,6 +4,8 @@ root = Path.cwd()
 
 block_cipher = None
 
+brand_icon = root / "packaging" / "windows" / "assets" / "homeprep.ico"
+
 a = Analysis(
     [str(root / "src" / "homeprep_server" / "manager.py")],
     pathex=[str(root / "src")],
@@ -26,6 +28,7 @@ exe = EXE(
     a.datas,
     [],
     name="HomePrepServerManager",
+    icon=str(brand_icon),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
