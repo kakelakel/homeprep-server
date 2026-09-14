@@ -11,7 +11,8 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 .shell { width: min(1280px, calc(100% - 32px)); margin: 0 auto; padding: 22px 0 40px; }
 .topbar { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-.brandmark, .auth-logo { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; color: white; background: #1769e0; font-weight: 850; box-shadow: 0 0 26px rgba(23,105,224,.38); }
+.brandmark { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 15px; background: url("/homeprep-icon.png") center/contain no-repeat; font-size: 0; filter: drop-shadow(0 0 14px rgba(23,105,224,.28)); }
+.auth-logo { width: 230px; height: 142px; margin: 0 auto 18px; background: url("/homeprep-logo.png") center/contain no-repeat; font-size: 0; }
 .brandcopy { min-width: 185px; }
 .topbar h1 { margin: 0; font-size: 1.18rem; }
 .topbar p { margin: 2px 0 0; color: #7990aa; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
@@ -55,8 +56,8 @@ button { cursor: pointer; }
 .score-attention { background: conic-gradient(#e0a52c 0 68%, #263749 68% 100%); }
 .score-critical { background: conic-gradient(#e65858 0 35%, #263749 35% 100%); }
 .auth-wrap { min-height: calc(100vh - 120px); display: grid; place-items: center; padding: 32px 0 80px; }
-.auth-card { width: min(460px, 100%); padding: 32px; }
-.auth-logo { margin-bottom: 22px; }
+.auth-card { width: min(460px, 100%); padding: 32px; text-align: center; }
+.auth-card .form { text-align: left; }
 .auth-card h2 { margin: 7px 0 10px; font-size: 2rem; }
 .auth-card > p { color: #8297ad; line-height: 1.6; margin: 0 0 22px; }
 .boot { min-height: 100vh; display: grid; place-items: center; color: #8193a7; font-weight: 800; }
@@ -111,4 +112,4 @@ button:disabled { opacity: .55; cursor: default; }
 .user-create { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(180px, 1.4fr) 130px auto; gap: 8px; padding-top: 17px; border-top: 1px solid #203044; }
 footer { display: flex; justify-content: space-between; gap: 20px; color: #60758d; font-size: .75rem; padding: 20px 4px 0; }
 @media (max-width: 980px) { .hero, .home-grid { grid-template-columns: 1fr; } .metric-grid { grid-template-columns: repeat(2, 1fr); } .form-grid, .card-grid { grid-template-columns: 1fr 1fr; } .entity-create { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 650px) { .shell { width: min(100% - 18px, 1280px); padding-top: 12px; } .brandcopy p { display: none; } .status { font-size: 0; padding: 10px; } .hero, .panel, .auth-card { padding: 18px; } .metric-grid, .role-strip, .card-grid, .form-grid { grid-template-columns: 1fr; } .server-meta { grid-template-columns: 1fr; } .readiness-placeholder { grid-template-columns: 1fr; } .entity-row, .user-row { grid-template-columns: 1fr auto; } .entity-create, .entity-create.wide, .user-create { grid-template-columns: 1fr 1fr; } .entity-create input[name="name"], .entity-create button, .user-create input, .user-create button { grid-column: 1 / -1; } .row-actions { grid-column: 1 / -1; justify-content: flex-end; } .user-row select { grid-column: 1 / -1; } footer { flex-direction: column; gap: 4px; } }
+@media (max-width: 650px) { .shell { width: min(100% - 18px, 1280px); padding-top: 12px; } .brandcopy p { display: none; } .brandmark { width: 44px; height: 44px; flex-basis: 44px; } .status { font-size: 0; padding: 10px; } .hero, .panel, .auth-card { padding: 18px; } .auth-logo { width: 190px; height: 118px; } .metric-grid, .role-strip, .card-grid, .form-grid { grid-template-columns: 1fr; } .server-meta { grid-template-columns: 1fr; } .readiness-placeholder { grid-template-columns: 1fr; } .entity-row, .user-row { grid-template-columns: 1fr auto; } .entity-create, .entity-create.wide, .user-create { grid-template-columns: 1fr 1fr; } .entity-create input[name="name"], .entity-create button, .user-create input, .user-create button { grid-column: 1 / -1; } .row-actions { grid-column: 1 / -1; justify-content: flex-end; } .user-row select { grid-column: 1 / -1; } footer { flex-direction: column; gap: 4px; } }
