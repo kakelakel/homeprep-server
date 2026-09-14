@@ -2,11 +2,11 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from homeprep_server.api.auth import require_user
+from homeprep_server.api.authz import OwnerDep
 from homeprep_server.core.security import create_client_token, hash_client_token
 from homeprep_server.database import get_session
 from homeprep_server.models import ClientCredentialModel, ClientPairingModel, utc_now
@@ -17,6 +17,7 @@ from homeprep_server.schemas import (
     ClientPairingCreated,
     ClientPairingExchange,
 )
+from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/pairing", tags=["pairing"])
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -27,9 +28,12 @@ PAIRING_LIFETIME_MINUTES = 10
     "",
     response_model=ClientPairingCreated,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_user)],
 )
-def create_pairing(payload: ClientPairingCreate, session: SessionDep) -> ClientPairingCreated:
+def create_pairing(
+    payload: ClientPairingCreate,
+    session: SessionDep,
+    _owner: OwnerDep,
+) -> ClientPairingCreated:
     pairing_token = create_client_token()
     expires_at = utc_now() + timedelta(minutes=PAIRING_LIFETIME_MINUTES)
     pairing = ClientPairingModel(
