@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from homeprep_server.api.authz import OwnerDep
@@ -9,7 +9,6 @@ from homeprep_server.api.client_auth import PrincipalDep
 from homeprep_server.database import get_session
 from homeprep_server.schemas import HouseholdCreate, HouseholdRead
 from homeprep_server.services import ConflictError, HouseholdService, NotFoundError
-from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/households", tags=["households"])
 SessionDep = Annotated[Session, Depends(get_session)]
