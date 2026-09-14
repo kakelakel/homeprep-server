@@ -7,7 +7,10 @@ from homeprep_server.models import (
     AssetModel,
     ContainerModel,
     HouseholdModel,
+    HouseholdProfileModel,
     InventoryItemModel,
+    PlanModel,
+    TargetModel,
     TaskModel,
 )
 
@@ -36,6 +39,20 @@ class HouseholdRepository:
             .order_by(HouseholdModel.name.asc(), HouseholdModel.id.asc())
         )
         return self.session.scalars(statement).all()
+
+
+class HouseholdProfileRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def get(self, household_id: str) -> HouseholdProfileModel | None:
+        return self.session.get(HouseholdProfileModel, household_id)
+
+    def add(self, profile: HouseholdProfileModel) -> HouseholdProfileModel:
+        self.session.add(profile)
+        self.session.flush()
+        self.session.refresh(profile)
+        return profile
 
 
 class ContainerRepository:
@@ -121,6 +138,64 @@ class TaskRepository:
                 TaskModel.deleted_at.is_(None),
             )
             .order_by(TaskModel.next_due_at.asc(), TaskModel.name.asc(), TaskModel.id.asc())
+        )
+        return self.session.scalars(statement).all()
+
+
+class TargetRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, target: TargetModel) -> TargetModel:
+        self.session.add(target)
+        self.session.flush()
+        self.session.refresh(target)
+        return target
+
+    def get(self, target_id: str) -> TargetModel | None:
+        statement = select(TargetModel).where(
+            TargetModel.id == target_id,
+            TargetModel.deleted_at.is_(None),
+        )
+        return self.session.scalar(statement)
+
+    def list_for_household(self, household_id: str) -> Sequence[TargetModel]:
+        statement = (
+            select(TargetModel)
+            .where(
+                TargetModel.household_id == household_id,
+                TargetModel.deleted_at.is_(None),
+            )
+            .order_by(TargetModel.priority.asc(), TargetModel.name.asc(), TargetModel.id.asc())
+        )
+        return self.session.scalars(statement).all()
+
+
+class PlanRepository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, plan: PlanModel) -> PlanModel:
+        self.session.add(plan)
+        self.session.flush()
+        self.session.refresh(plan)
+        return plan
+
+    def get(self, plan_id: str) -> PlanModel | None:
+        statement = select(PlanModel).where(
+            PlanModel.id == plan_id,
+            PlanModel.deleted_at.is_(None),
+        )
+        return self.session.scalar(statement)
+
+    def list_for_household(self, household_id: str) -> Sequence[PlanModel]:
+        statement = (
+            select(PlanModel)
+            .where(
+                PlanModel.household_id == household_id,
+                PlanModel.deleted_at.is_(None),
+            )
+            .order_by(PlanModel.name.asc(), PlanModel.id.asc())
         )
         return self.session.scalars(statement).all()
 
