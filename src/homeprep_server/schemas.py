@@ -552,6 +552,10 @@ class InventoryCreate(BaseModel):
     next_check_at: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
     container_id: UUID | None = None
+    image_id: str | None = Field(default=None, max_length=120)
+    image_token: str | None = Field(default=None, max_length=255)
+    image_content_type: str | None = Field(default=None, max_length=120)
+    image_filename: str | None = Field(default=None, max_length=255)
 
 
 class InventoryUpdate(BaseModel):
@@ -565,6 +569,10 @@ class InventoryUpdate(BaseModel):
     next_check_at: date | None = None
     notes: str | None = Field(default=None, max_length=2000)
     container_id: UUID | None = None
+    image_id: str | None = Field(default=None, max_length=120)
+    image_token: str | None = Field(default=None, max_length=255)
+    image_content_type: str | None = Field(default=None, max_length=120)
+    image_filename: str | None = Field(default=None, max_length=255)
     expected_revision: int = Field(ge=1)
 
 
@@ -583,6 +591,10 @@ class InventoryRead(BaseModel):
     next_check_at: date | None
     notes: str | None
     container_id: UUID | None
+    image_id: str | None
+    image_token: str | None
+    image_content_type: str | None
+    image_filename: str | None
     created_at: datetime
     updated_at: datetime
     revision: int
