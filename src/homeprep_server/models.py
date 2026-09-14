@@ -29,7 +29,9 @@ class AuthSessionModel(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), index=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), index=True, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -52,7 +54,9 @@ class ClientPairingModel(Base):
     __tablename__ = "client_pairings"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    pairing_token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    pairing_token_hash: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     client_type: Mapped[str] = mapped_column(String(32), nullable=False)
     access_role: Mapped[str] = mapped_column(String(32), default="full_access", nullable=False)
@@ -77,7 +81,9 @@ class ContainerModel(Base):
     __tablename__ = "containers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    household_id: Mapped[str] = mapped_column(String(36), ForeignKey("households.id"), index=True, nullable=False)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     container_type: Mapped[str] = mapped_column(String(32), nullable=False, default="other")
     location: Mapped[str | None] = mapped_column(String(240), nullable=True)
@@ -96,7 +102,9 @@ class InventoryItemModel(Base):
     __tablename__ = "inventory_items"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    household_id: Mapped[str] = mapped_column(String(36), ForeignKey("households.id"), index=True, nullable=False)
+    household_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("households.id"), index=True, nullable=False
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False, default="other")
     item_type: Mapped[str] = mapped_column(String(32), nullable=False, default="consumable")
@@ -106,7 +114,9 @@ class InventoryItemModel(Base):
     last_checked: Mapped[date | None] = mapped_column(Date, nullable=True)
     next_check_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    container_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("containers.id"), nullable=True)
+    container_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("containers.id"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
