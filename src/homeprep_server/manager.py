@@ -50,7 +50,7 @@ def _service_state() -> str:
     return "Starting / stopping"
 
 
-def _run_elevated_powershell(script: str) -> bool:
+def _run_elevated_powershell_code(script: str) -> int:
     escaped = script.replace("'", "''")
     command = (
         "$p=Start-Process powershell.exe -Verb RunAs -Wait -PassThru "
@@ -62,7 +62,11 @@ def _run_elevated_powershell(script: str) -> bool:
         creationflags=CREATE_NO_WINDOW,
         check=False,
     )
-    return result.returncode == 0
+    return result.returncode
+
+
+def _run_elevated_powershell(script: str) -> bool:
+    return _run_elevated_powershell_code(script) == 0
 
 
 def _service_action(action: str) -> bool:
@@ -111,9 +115,11 @@ def _create_local_backup(data_dir: Path) -> Path:
     settings.data_dir = data_dir
     settings.database_url = None
     reset_database_state()
-    result = create_backup(data_dir / "backups")
-    reset_database_state()
-    return Path(result.path)
+    try:
+        result = create_backup(data_dir / "backups")
+        return Path(result.path)
+    finally:
+        reset_database_state()
 
 
 def _validate_local_backup(path: Path):
@@ -136,25 +142,29 @@ def _restore_invocation(archive_path: Path) -> str:
     )
 
 
-def _restore_local_backup(archive_path: Path, *, restart_service: bool) -> bool:
+def _restore_local_backup(archive_path: Path, *, restart_service: bool) -> str:
     restore_command = _restore_invocation(archive_path)
-    restore_step = (
-        f"{restore_command}; "
-        "if ($LASTEXITCODE -ne 0) { throw 'HomePrep restore command failed' }"
+    steps = ["$ErrorActionPreference='Stop'"]
+    if restart_service:
+        steps.append(f"Stop-Service -Name '{SERVICE_NAME}' -Force -ErrorAction Stop")
+    steps.extend(
+        [
+            restore_command,
+            "if ($LASTEXITCODE -ne 0) { exit 10 }",
+        ]
     )
     if restart_service:
-        script = (
-            "$ErrorActionPreference='Stop'; "
-            f"Stop-Service -Name '{SERVICE_NAME}' -Force -ErrorAction Stop; "
-            "try { "
-            f"{restore_step} "
-            "} finally { "
-            f"Start-Service -Name '{SERVICE_NAME}' -ErrorAction Stop "
-            "}"
+        steps.append(
+            f"try {{ Start-Service -Name '{SERVICE_NAME}' -ErrorAction Stop }} "
+            "catch { exit 20 }"
         )
-    else:
-        script = f"$ErrorActionPreference='Stop'; {restore_step}"
-    return _run_elevated_powershell(script)
+    steps.append("exit 0")
+    exit_code = _run_elevated_powershell_code("; ".join(steps))
+    if exit_code == 0:
+        return "success"
+    if exit_code == 20:
+        return "restart_failed"
+    return "restore_failed"
 
 
 def _version_key(version: str) -> tuple[int, int, int, int]:
@@ -177,9 +187,7 @@ def _latest_release() -> tuple[str, str] | None:
         if exc.code == 404:
             return None
         raise
-    tag = str(payload["tag_name"])
-    release_url = str(payload["html_url"])
-    return tag, release_url
+    return str(payload["tag_name"]), str(payload["html_url"])
 
 
 def open_homeprep_from_config() -> None:
@@ -216,11 +224,9 @@ class ManagerApp(tk.Tk):
         root = ttk.Frame(self, padding=22)
         root.pack(fill="both", expand=True)
 
-        ttk.Label(
-            root,
-            text="HomePrep Server Manager",
-            font=("Segoe UI", 18, "bold"),
-        ).pack(anchor="w")
+        ttk.Label(root, text="HomePrep Server Manager", font=("Segoe UI", 18, "bold")).pack(
+            anchor="w"
+        )
         ttk.Label(
             root,
             text="Manage the local HomePrep Server service and standalone settings.",
@@ -230,119 +236,42 @@ class ManagerApp(tk.Tk):
         status.pack(fill="x")
         grid = ttk.Frame(status)
         grid.pack(fill="x")
-        ttk.Label(grid, text="Service status:").grid(
-            row=0,
-            column=0,
-            sticky="w",
-            padx=(0, 18),
-            pady=4,
+        ttk.Label(grid, text="Service status:").grid(row=0, column=0, sticky="w", padx=(0, 18), pady=4)
+        ttk.Label(grid, textvariable=self.status_var, font=("Segoe UI", 10, "bold")).grid(
+            row=0, column=1, sticky="w", pady=4
         )
-        ttk.Label(
-            grid,
-            textvariable=self.status_var,
-            font=("Segoe UI", 10, "bold"),
-        ).grid(row=0, column=1, sticky="w", pady=4)
-        ttk.Label(grid, text="Web/API:").grid(
-            row=1,
-            column=0,
-            sticky="w",
-            padx=(0, 18),
-            pady=4,
-        )
-        ttk.Label(grid, textvariable=self.reachable_var).grid(
-            row=1,
-            column=1,
-            sticky="w",
-            pady=4,
-        )
-        ttk.Label(grid, text="Version:").grid(
-            row=2,
-            column=0,
-            sticky="w",
-            padx=(0, 18),
-            pady=4,
-        )
+        ttk.Label(grid, text="Web/API:").grid(row=1, column=0, sticky="w", padx=(0, 18), pady=4)
+        ttk.Label(grid, textvariable=self.reachable_var).grid(row=1, column=1, sticky="w", pady=4)
+        ttk.Label(grid, text="Version:").grid(row=2, column=0, sticky="w", padx=(0, 18), pady=4)
         ttk.Label(grid, text=__version__).grid(row=2, column=1, sticky="w", pady=4)
-        ttk.Label(grid, text="Data folder:").grid(
-            row=3,
-            column=0,
-            sticky="w",
-            padx=(0, 18),
-            pady=4,
-        )
-        ttk.Label(grid, text=str(self.data_dir)).grid(
-            row=3,
-            column=1,
-            sticky="w",
-            pady=4,
-        )
+        ttk.Label(grid, text="Data folder:").grid(row=3, column=0, sticky="w", padx=(0, 18), pady=4)
+        ttk.Label(grid, text=str(self.data_dir)).grid(row=3, column=1, sticky="w", pady=4)
 
         buttons = ttk.Frame(status)
         buttons.pack(fill="x", pady=(12, 0))
-        ttk.Button(
-            buttons,
-            text="Open HomePrep",
-            command=self.open_homeprep,
-        ).pack(side="left", padx=(0, 8))
-        ttk.Button(
-            buttons,
-            text="Start",
-            command=lambda: self.do_service_action("start"),
-        ).pack(side="left", padx=4)
-        ttk.Button(
-            buttons,
-            text="Stop",
-            command=lambda: self.do_service_action("stop"),
-        ).pack(side="left", padx=4)
-        ttk.Button(
-            buttons,
-            text="Restart",
-            command=lambda: self.do_service_action("restart"),
-        ).pack(side="left", padx=4)
-        ttk.Button(
-            buttons,
-            text="Refresh",
-            command=self.refresh_status,
-        ).pack(side="right")
+        ttk.Button(buttons, text="Open HomePrep", command=self.open_homeprep).pack(side="left", padx=(0, 8))
+        ttk.Button(buttons, text="Start", command=lambda: self.do_service_action("start")).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Stop", command=lambda: self.do_service_action("stop")).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Restart", command=lambda: self.do_service_action("restart")).pack(side="left", padx=4)
+        ttk.Button(buttons, text="Refresh", command=self.refresh_status).pack(side="right")
 
         settings = ttk.LabelFrame(root, text="Network settings", padding=14)
         settings.pack(fill="x", pady=(16, 0))
         form = ttk.Frame(settings)
         form.pack(fill="x")
-        ttk.Label(form, text="Port").grid(
-            row=0,
-            column=0,
-            sticky="w",
-            padx=(0, 14),
-            pady=6,
-        )
-        ttk.Entry(form, textvariable=self.port_var, width=12).grid(
-            row=0,
-            column=1,
-            sticky="w",
-            pady=6,
-        )
-        ttk.Label(form, text="Access").grid(
-            row=1,
-            column=0,
-            sticky="w",
-            padx=(0, 14),
-            pady=6,
-        )
-        access = ttk.Combobox(
+        ttk.Label(form, text="Port").grid(row=0, column=0, sticky="w", padx=(0, 14), pady=6)
+        ttk.Entry(form, textvariable=self.port_var, width=12).grid(row=0, column=1, sticky="w", pady=6)
+        ttk.Label(form, text="Access").grid(row=1, column=0, sticky="w", padx=(0, 14), pady=6)
+        ttk.Combobox(
             form,
             textvariable=self.access_var,
             values=("Local only", "LAN"),
             state="readonly",
             width=18,
-        )
-        access.grid(row=1, column=1, sticky="w", pady=6)
+        ).grid(row=1, column=1, sticky="w", pady=6)
         ttk.Label(
             form,
-            text=(
-                "LAN exposes HomePrep on this computer's network interfaces. "
-                "Authentication still applies."
-            ),
+            text="LAN exposes HomePrep on this computer's network interfaces. Authentication still applies.",
             wraplength=480,
         ).grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 8))
 
@@ -350,27 +279,9 @@ class ManagerApp(tk.Tk):
         backups.pack(fill="x", pady=(16, 0))
         backup_form = ttk.Frame(backups)
         backup_form.pack(fill="x")
-        ttk.Label(backup_form, text="Latest:").grid(
-            row=0,
-            column=0,
-            sticky="w",
-            padx=(0, 14),
-            pady=4,
-        )
-        ttk.Label(backup_form, textvariable=self.backup_var).grid(
-            row=0,
-            column=1,
-            columnspan=2,
-            sticky="w",
-            pady=4,
-        )
-        ttk.Label(backup_form, text="Schedule:").grid(
-            row=1,
-            column=0,
-            sticky="w",
-            padx=(0, 14),
-            pady=4,
-        )
+        ttk.Label(backup_form, text="Latest:").grid(row=0, column=0, sticky="w", padx=(0, 14), pady=4)
+        ttk.Label(backup_form, textvariable=self.backup_var).grid(row=0, column=1, columnspan=2, sticky="w", pady=4)
+        ttk.Label(backup_form, text="Schedule:").grid(row=1, column=0, sticky="w", padx=(0, 14), pady=4)
         ttk.Combobox(
             backup_form,
             textvariable=self.backup_schedule_var,
@@ -378,61 +289,29 @@ class ManagerApp(tk.Tk):
             state="readonly",
             width=14,
         ).grid(row=1, column=1, sticky="w", pady=4)
-        ttk.Label(backup_form, text="Keep backups:").grid(
-            row=2,
-            column=0,
-            sticky="w",
-            padx=(0, 14),
-            pady=4,
-        )
-        ttk.Entry(
-            backup_form,
-            textvariable=self.backup_retention_var,
-            width=8,
-        ).grid(row=2, column=1, sticky="w", pady=4)
+        ttk.Label(backup_form, text="Keep backups:").grid(row=2, column=0, sticky="w", padx=(0, 14), pady=4)
+        ttk.Entry(backup_form, textvariable=self.backup_retention_var, width=8).grid(row=2, column=1, sticky="w", pady=4)
         ttk.Label(backup_form, text="files").grid(row=2, column=2, sticky="w", pady=4)
 
         backup_buttons = ttk.Frame(backups)
         backup_buttons.pack(fill="x", pady=(10, 0))
-        ttk.Button(
-            backup_buttons,
-            text="Back up now",
-            command=self.backup_now,
-        ).pack(side="left")
-        ttk.Button(
-            backup_buttons,
-            text="Restore backup…",
-            command=self.restore_backup,
-        ).pack(side="left", padx=8)
+        ttk.Button(backup_buttons, text="Back up now", command=self.backup_now).pack(side="left")
+        ttk.Button(backup_buttons, text="Restore backup…", command=self.restore_backup).pack(side="left", padx=8)
         ttk.Button(
             backup_buttons,
             text="Open backup folder",
             command=lambda: _open_folder(self.data_dir / "backups"),
         ).pack(side="left")
 
-        ttk.Button(
-            root,
-            text="Save settings and restart",
-            command=self.save_settings,
-        ).pack(anchor="w", pady=(16, 0))
+        ttk.Button(root, text="Save settings and restart", command=self.save_settings).pack(
+            anchor="w", pady=(16, 0)
+        )
 
         tools = ttk.Frame(root)
         tools.pack(fill="x", pady=(16, 0))
-        ttk.Button(
-            tools,
-            text="Check for updates",
-            command=self.check_for_updates,
-        ).pack(side="left")
-        ttk.Button(
-            tools,
-            text="Open data folder",
-            command=lambda: _open_folder(self.data_dir),
-        ).pack(side="left", padx=8)
-        ttk.Button(
-            tools,
-            text="Open Windows Services",
-            command=self.open_services,
-        ).pack(side="left")
+        ttk.Button(tools, text="Check for updates", command=self.check_for_updates).pack(side="left")
+        ttk.Button(tools, text="Open data folder", command=lambda: _open_folder(self.data_dir)).pack(side="left", padx=8)
+        ttk.Button(tools, text="Open Windows Services", command=self.open_services).pack(side="left")
 
     def current_port(self) -> int:
         try:
@@ -456,10 +335,7 @@ class ManagerApp(tk.Tk):
         if not _service_action(action):
             messagebox.showerror(
                 "HomePrep",
-                (
-                    f"Could not {action} HomePrep Server. "
-                    "Administrator permission may have been cancelled."
-                ),
+                f"Could not {action} HomePrep Server. Administrator permission may have been cancelled.",
             )
             return
         self.after(900, self.refresh_status)
@@ -468,16 +344,10 @@ class ManagerApp(tk.Tk):
         try:
             archive_path = _create_local_backup(self.data_dir)
         except Exception as exc:
-            messagebox.showerror(
-                "Backup failed",
-                f"HomePrep could not create a backup.\n\n{exc}",
-            )
+            messagebox.showerror("Backup failed", f"HomePrep could not create a backup.\n\n{exc}")
             return
         self.backup_var.set(archive_path.name)
-        messagebox.showinfo(
-            "Backup complete",
-            f"Backup created successfully:\n\n{archive_path}",
-        )
+        messagebox.showinfo("Backup complete", f"Backup created successfully:\n\n{archive_path}")
 
     def restore_backup(self) -> None:
         selected = filedialog.askopenfilename(
@@ -491,81 +361,69 @@ class ManagerApp(tk.Tk):
         archive_path = Path(selected)
         validation = _validate_local_backup(archive_path)
         if not validation.valid:
-            messagebox.showerror(
-                "Invalid backup",
-                f"This backup cannot be restored.\n\n{validation.error}",
-            )
+            messagebox.showerror("Invalid backup", f"This backup cannot be restored.\n\n{validation.error}")
             return
 
         household = validation.household_name or "No household configured"
-        confirmed = messagebox.askyesno(
+        if not messagebox.askyesno(
             "Restore HomePrep backup",
             (
                 "This will replace the current HomePrep database.\n\n"
                 f"Backup: {archive_path.name}\n"
                 f"Created: {validation.created_at}\n"
                 f"Household: {household}\n\n"
-                "HomePrep will create a safety backup of the current database first. "
-                "Continue?"
+                "HomePrep will create a safety backup of the current database first. Continue?"
             ),
-        )
-        if not confirmed:
+        ):
             return
 
         was_running = _service_state() == "Running"
-        if not _restore_local_backup(archive_path, restart_service=was_running):
-            messagebox.showerror(
-                "Restore failed",
-                (
-                    "HomePrep could not restore the selected backup. "
-                    "The existing database was not intentionally discarded."
-                ),
-            )
-            self.after(900, self.refresh_status)
-            return
-
+        result = _restore_local_backup(archive_path, restart_service=was_running)
         self.after(900, self.refresh_status)
         self.backup_var.set(_latest_backup_name(self.data_dir))
-        messagebox.showinfo(
-            "Restore complete",
-            "The backup was restored successfully. HomePrep is ready to use.",
-        )
+
+        if result == "restore_failed":
+            messagebox.showerror(
+                "Restore failed",
+                "HomePrep could not restore the selected backup. The current database was left intact whenever possible.",
+            )
+            return
+        if result == "restart_failed":
+            messagebox.showwarning(
+                "Restore complete — server not started",
+                (
+                    "The backup was restored successfully, but HomePrep Server could not be restarted automatically. "
+                    "Start the service from Server Manager or Windows Services."
+                ),
+            )
+            return
+        messagebox.showinfo("Restore complete", "The backup was restored successfully. HomePrep is ready to use.")
 
     def check_for_updates(self) -> None:
         try:
             release = _latest_release()
         except (OSError, urllib.error.URLError, KeyError, ValueError, json.JSONDecodeError) as exc:
-            messagebox.showerror(
-                "Update check failed",
-                f"HomePrep could not check for updates.\n\n{exc}",
-            )
+            messagebox.showerror("Update check failed", f"HomePrep could not check for updates.\n\n{exc}")
             return
 
         if release is None:
-            messagebox.showinfo(
-                "HomePrep updates",
-                "No published HomePrep Server release is available yet.",
-            )
+            messagebox.showinfo("HomePrep updates", "No published HomePrep Server release is available yet.")
             return
 
         latest_version, release_url = release
         if _version_key(latest_version) > _version_key(__version__):
-            open_release = messagebox.askyesno(
+            if messagebox.askyesno(
                 "Update available",
                 (
                     f"Installed: {__version__}\n"
                     f"Latest: {latest_version}\n\n"
                     "A newer HomePrep Server release is available. Open the release page?"
                 ),
-            )
-            if open_release:
+            ):
                 webbrowser.open(release_url)
             return
 
-        messagebox.showinfo(
-            "HomePrep updates",
-            f"HomePrep Server {__version__} is up to date.",
-        )
+        messagebox.showinfo("HomePrep updates", f"HomePrep Server {__version__} is up to date.")
 
     def save_settings(self) -> None:
         try:
@@ -589,10 +447,7 @@ class ManagerApp(tk.Tk):
         if not _service_action("restart"):
             messagebox.showwarning(
                 "Settings saved",
-                (
-                    "Settings were saved, but the server could not be restarted. "
-                    "Restart it from the manager when ready."
-                ),
+                "Settings were saved, but the server could not be restarted. Restart it from the manager when ready.",
             )
             return
         self.after(900, self.refresh_status)
@@ -602,10 +457,7 @@ class ManagerApp(tk.Tk):
         try:
             subprocess.Popen(["mmc.exe", "services.msc"])
         except OSError as exc:
-            messagebox.showerror(
-                "HomePrep",
-                f"Could not open Windows Services.\n\n{exc}",
-            )
+            messagebox.showerror("HomePrep", f"Could not open Windows Services.\n\n{exc}")
 
 
 def main() -> None:
