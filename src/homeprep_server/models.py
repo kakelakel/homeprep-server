@@ -248,8 +248,12 @@ class InventoryItemModel(Base):
     container_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("containers.id"), nullable=True
     )
+    image_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    image_content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    image_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     revision: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    schema_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    schema_version: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
