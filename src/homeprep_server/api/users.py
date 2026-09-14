@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -11,7 +11,6 @@ from homeprep_server.core.security import hash_password
 from homeprep_server.database import get_session
 from homeprep_server.models import AuthSessionModel, UserModel, utc_now
 from homeprep_server.schemas import UserCreate, UserRead, UserUpdate
-from fastapi import Depends
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 SessionDep = Annotated[Session, Depends(get_session)]
