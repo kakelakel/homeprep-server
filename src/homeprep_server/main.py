@@ -8,6 +8,7 @@ from homeprep_server import __version__
 from homeprep_server.api.auth import router as auth_router
 from homeprep_server.api.backups import router as backups_router
 from homeprep_server.api.clients import router as clients_router
+from homeprep_server.api.containers import router as containers_router
 from homeprep_server.api.context import router as context_router
 from homeprep_server.api.errors import install_error_handlers
 from homeprep_server.api.households import router as households_router
@@ -39,6 +40,7 @@ app.include_router(pairing_router)
 app.include_router(context_router)
 app.include_router(backups_router)
 app.include_router(households_router)
+app.include_router(containers_router)
 app.include_router(inventory_router)
 
 if settings.web_dir.exists():
