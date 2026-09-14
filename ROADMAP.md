@@ -82,6 +82,9 @@ Every future architecture decision should be checked against this principle. See
 - Optional external backup targets controlled by the user.
 - Backup integrity checks and clear recovery status.
 - Document disaster recovery and migration between hosts.
+- Add printable/offline household exports so preparedness information remains usable when the server, network or normal automation stack is unavailable.
+- Support print/PDF-friendly current-stock reports grouped by Container/storage location, with quantities, expiry/rotation details and optional useful images.
+- Support printable preparedness checklists and Plans for physical offline use.
 
 ## Phase 7 — Web application
 
@@ -91,6 +94,7 @@ Every future architecture decision should be checked against this principle. See
 - Plans, targets, tasks and shopping workflows.
 - Client/device management.
 - Backup/restore controls.
+- Print/export UI for checklists, current stock and container-grouped inventory catalogs.
 - Make server identity, storage and connection state visible rather than abstracting ownership away.
 
 ## Phase 8 — Android readiness
