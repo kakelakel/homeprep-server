@@ -81,7 +81,7 @@ begin
   InfoLabel.Parent := WizardForm.SelectDirPage;
   InfoLabel.Left := WizardForm.SelectDirLabel.Left;
   InfoLabel.Top := WizardForm.SelectDirLabel.Top + WizardForm.SelectDirLabel.Height + ScaleY(8);
-  InfoLabel.Width := WizardForm.SelectDirPage.SurfaceWidth;
+  InfoLabel.Width := WizardForm.SelectDirPage.Width - InfoLabel.Left - ScaleX(24);
   InfoLabel.Height := ScaleY(42);
   InfoLabel.WordWrap := True;
   InfoLabel.Caption :=
