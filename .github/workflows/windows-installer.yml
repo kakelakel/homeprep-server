@@ -26,14 +26,24 @@ jobs:
       - name: Stamp development version
         shell: pwsh
         run: |
-          $path = "src/homeprep_server/__init__.py"
           $version = "0.1.${env:GITHUB_RUN_NUMBER}"
+          $versionInfo = "0.1.${env:GITHUB_RUN_NUMBER}.0"
+
+          $packagePath = "src/homeprep_server/__init__.py"
           @(
             '"""HomePrep Server package."""'
             ''
             "__version__ = `"$version`""
-          ) | Set-Content -Path $path -Encoding utf8
-          Get-Content -Path $path
+          ) | Set-Content -Path $packagePath -Encoding utf8
+
+          $installerPath = "packaging/windows/HomePrep.iss"
+          $installer = Get-Content -Path $installerPath -Raw
+          $installer = $installer -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"$version`""
+          $installer = $installer -replace '#define MyAppVersionInfo ".*"', "#define MyAppVersionInfo `"$versionInfo`""
+          Set-Content -Path $installerPath -Value $installer -Encoding utf8
+
+          Get-Content -Path $packagePath
+          Get-Content -Path $installerPath | Select-Object -First 4
 
       - name: Set up Python
         uses: actions/setup-python@v5
