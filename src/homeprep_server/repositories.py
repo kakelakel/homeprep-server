@@ -24,7 +24,11 @@ class HouseholdRepository:
         return self.session.scalar(statement)
 
     def list_all(self) -> Sequence[HouseholdModel]:
-        statement = select(HouseholdModel).where(HouseholdModel.deleted_at.is_(None)).order_by(HouseholdModel.name.asc(), HouseholdModel.id.asc())
+        statement = (
+            select(HouseholdModel)
+            .where(HouseholdModel.deleted_at.is_(None))
+            .order_by(HouseholdModel.name.asc(), HouseholdModel.id.asc())
+        )
         return self.session.scalars(statement).all()
 
 
@@ -39,11 +43,21 @@ class ContainerRepository:
         return container
 
     def get(self, container_id: str) -> ContainerModel | None:
-        statement = select(ContainerModel).where(ContainerModel.id == container_id, ContainerModel.deleted_at.is_(None))
+        statement = select(ContainerModel).where(
+            ContainerModel.id == container_id,
+            ContainerModel.deleted_at.is_(None),
+        )
         return self.session.scalar(statement)
 
     def list_for_household(self, household_id: str) -> Sequence[ContainerModel]:
-        statement = select(ContainerModel).where(ContainerModel.household_id == household_id, ContainerModel.deleted_at.is_(None)).order_by(ContainerModel.name.asc(), ContainerModel.id.asc())
+        statement = (
+            select(ContainerModel)
+            .where(
+                ContainerModel.household_id == household_id,
+                ContainerModel.deleted_at.is_(None),
+            )
+            .order_by(ContainerModel.name.asc(), ContainerModel.id.asc())
+        )
         return self.session.scalars(statement).all()
 
 
@@ -58,9 +72,19 @@ class InventoryRepository:
         return item
 
     def get(self, item_id: str) -> InventoryItemModel | None:
-        statement = select(InventoryItemModel).where(InventoryItemModel.id == item_id, InventoryItemModel.deleted_at.is_(None))
+        statement = select(InventoryItemModel).where(
+            InventoryItemModel.id == item_id,
+            InventoryItemModel.deleted_at.is_(None),
+        )
         return self.session.scalar(statement)
 
     def list_for_household(self, household_id: str) -> Sequence[InventoryItemModel]:
-        statement = select(InventoryItemModel).where(InventoryItemModel.household_id == household_id, InventoryItemModel.deleted_at.is_(None)).order_by(InventoryItemModel.name.asc(), InventoryItemModel.id.asc())
+        statement = (
+            select(InventoryItemModel)
+            .where(
+                InventoryItemModel.household_id == household_id,
+                InventoryItemModel.deleted_at.is_(None),
+            )
+            .order_by(InventoryItemModel.name.asc(), InventoryItemModel.id.asc())
+        )
         return self.session.scalars(statement).all()
