@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, select
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
-from homeprep_server.models import Base, InventoryItemModel, TaskModel, utc_now
+from homeprep_server.models import Base, utc_now
 from homeprep_server.repositories import HouseholdRepository, InventoryRepository, TaskRepository
 from homeprep_server.services import ConflictError, NotFoundError
 
@@ -29,7 +29,9 @@ class ShoppingItemModel(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -42,9 +44,13 @@ class NotificationModel(Base):
     household_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("households.id"), index=True, nullable=False
     )
-    event_key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    event_key: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, index=True
+    )
     kind: Mapped[str] = mapped_column(String(64), nullable=False)
-    severity: Mapped[str] = mapped_column(String(32), nullable=False, default="attention")
+    severity: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="attention"
+    )
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     resource_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -143,6 +149,7 @@ class ShoppingService:
                 continue
             if self.repository.source_exists(key, inventory_item.id):
                 continue
+            note = f"Replacement for expired inventory item ({inventory_item.expires_at})."
             self.repository.add(
                 ShoppingItemModel(
                     id=str(uuid4()),
@@ -153,7 +160,7 @@ class ShoppingService:
                     category=inventory_item.category,
                     source="expired_inventory",
                     source_inventory_item_id=inventory_item.id,
-                    notes=f"Replacement for expired inventory item ({inventory_item.expires_at}).",
+                    notes=note,
                 )
             )
             created += 1
@@ -255,8 +262,7 @@ class NotificationService:
         resource_type: str | None = None,
         resource_id: str | None = None,
     ) -> None:
-        existing = self.repository.by_event_key(event_key)
-        if existing is not None:
+        if self.repository.by_event_key(event_key) is not None:
             return
         self.session.add(
             NotificationModel(
@@ -276,7 +282,7 @@ class NotificationService:
         key = str(household_id)
         if self.households.get(key) is None:
             raise NotFoundError("Household not found")
-        before = self.session.query(NotificationModel).count()
+        before = self.session.scalar(select(func.count()).select_from(NotificationModel)) or 0
         today = date.today()
         soon = today + timedelta(days=30)
         for item in self.inventory.list_for_household(key):
@@ -289,7 +295,9 @@ class NotificationService:
                     kind="inventory_expired",
                     severity="critical",
                     title=f"{item.name} has expired",
-                    message=f"Expired on {item.expires_at}. Replace or review this inventory item.",
+                    message=(
+                        f"Expired on {item.expires_at}. Replace or review this inventory item."
+                    ),
                     resource_type="inventory",
                     resource_id=item.id,
                 )
@@ -328,7 +336,7 @@ class NotificationService:
                 resource_id=task.id,
             )
         self.session.commit()
-        after = self.session.query(NotificationModel).count()
+        after = self.session.scalar(select(func.count()).select_from(NotificationModel)) or 0
         return max(0, after - before)
 
     def list_for_household(self, household_id: UUID):
