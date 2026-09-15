@@ -23,7 +23,9 @@ PLAN_TEMPLATES: dict[str, dict] = {
     "fire": {
         "name": "Fire safety plan",
         "plan_type": "fire",
-        "description": "Household fire preparedness, evacuation and equipment readiness.",
+        "description": (
+            "Household fire preparedness, evacuation and equipment readiness."
+        ),
         "review_interval_months": 6,
         "checklist": [
             {"label": "A household meeting point outside the home has been agreed"},
@@ -31,7 +33,12 @@ PLAN_TEMPLATES: dict[str, dict] = {
             {"label": "Alternative escape routes have been considered"},
             {"label": "Smoke alarms are installed in suitable locations"},
             {"label": "Smoke alarms have been tested recently"},
-            {"label": "Fire extinguisher or other suitable extinguishing equipment is available"},
+            {
+                "label": (
+                    "Fire extinguisher or other suitable extinguishing equipment "
+                    "is available"
+                )
+            },
             {"label": "Fire blanket is available where appropriate"},
             {"label": "Children know what to do if the alarm sounds"},
         ],
@@ -48,14 +55,22 @@ PLAN_TEMPLATES: dict[str, dict] = {
             {"label": "Leak sensors have been tested recently"},
             {"label": "Floor drains and drainage routes are accessible and clear"},
             {"label": "Washing-machine and dishwasher hoses have been inspected"},
-            {"label": "Important documents and vulnerable valuables are stored above likely flood level"},
+            {
+                "label": (
+                    "Important documents and vulnerable valuables are stored above "
+                    "likely flood level"
+                )
+            },
             {"label": "Any sump pump or drainage pump has been tested"},
         ],
     },
     "evacuation": {
         "name": "Rapid evacuation plan",
         "plan_type": "evacuation",
-        "description": "Be ready to leave the home quickly with the people and essentials that matter most.",
+        "description": (
+            "Be ready to leave the home quickly with the people and essentials that "
+            "matter most."
+        ),
         "review_interval_months": 6,
         "checklist": [
             {"label": "Primary exit routes are known"},
@@ -65,7 +80,11 @@ PLAN_TEMPLATES: dict[str, dict] = {
             {"label": "Important documents or copies are accessible"},
             {"label": "Children and dependants have a clear evacuation routine"},
             {"label": "Pet transport and essential pet supplies are planned"},
-            {"label": "A contact outside the household knows the emergency plan"},
+            {
+                "label": (
+                    "A contact outside the household knows the emergency plan"
+                )
+            },
         ],
     },
 }
@@ -116,7 +135,11 @@ def list_plan_templates(principal: PrincipalDep) -> list[dict]:
     ]
 
 
-@router.post("/from-template", response_model=PlanRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/from-template",
+    response_model=PlanRead,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_plan_from_template(
     payload: PlanTemplateCreate,
     session: SessionDep,
@@ -230,7 +253,8 @@ def toggle_plan_checklist_item(
         plan = service.get(plan_id)
         if plan.revision != payload.expected_revision:
             raise ConflictError(
-                f"Revision mismatch: expected {payload.expected_revision}, current {plan.revision}"
+                f"Revision mismatch: expected {payload.expected_revision}, "
+                f"current {plan.revision}"
             )
         checklist = [dict(item) for item in plan.checklist]
         found = False
