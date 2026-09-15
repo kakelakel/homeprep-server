@@ -1,7 +1,12 @@
+from __future__ import annotations
+
+from calendar import monthrange
+from datetime import date, datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from homeprep_server.api.client_auth import PrincipalDep, WritePrincipalDep
@@ -14,6 +19,72 @@ router = APIRouter(prefix="/api/v1/plans", tags=["plans"])
 SessionDep = Annotated[Session, Depends(get_session)]
 ExpectedRevision = Annotated[int, Query(ge=1)]
 
+PLAN_TEMPLATES: dict[str, dict] = {
+    "fire": {
+        "name": "Fire safety plan",
+        "plan_type": "fire",
+        "description": "Household fire preparedness, evacuation and equipment readiness.",
+        "review_interval_months": 6,
+        "checklist": [
+            {"label": "A household meeting point outside the home has been agreed"},
+            {"label": "Everyone knows the primary evacuation route"},
+            {"label": "Alternative escape routes have been considered"},
+            {"label": "Smoke alarms are installed in suitable locations"},
+            {"label": "Smoke alarms have been tested recently"},
+            {"label": "Fire extinguisher or other suitable extinguishing equipment is available"},
+            {"label": "Fire blanket is available where appropriate"},
+            {"label": "Children know what to do if the alarm sounds"},
+        ],
+    },
+    "flood": {
+        "name": "Flood and water damage plan",
+        "plan_type": "flood",
+        "description": "Reduce the impact of leaks, flooding and water-related damage.",
+        "review_interval_months": 6,
+        "checklist": [
+            {"label": "The main water shutoff is known and accessible"},
+            {"label": "Household members know how to shut off the water"},
+            {"label": "Leak sensors are installed in relevant areas"},
+            {"label": "Leak sensors have been tested recently"},
+            {"label": "Floor drains and drainage routes are accessible and clear"},
+            {"label": "Washing-machine and dishwasher hoses have been inspected"},
+            {"label": "Important documents and vulnerable valuables are stored above likely flood level"},
+            {"label": "Any sump pump or drainage pump has been tested"},
+        ],
+    },
+    "evacuation": {
+        "name": "Rapid evacuation plan",
+        "plan_type": "evacuation",
+        "description": "Be ready to leave the home quickly with the people and essentials that matter most.",
+        "review_interval_months": 6,
+        "checklist": [
+            {"label": "Primary exit routes are known"},
+            {"label": "A household meeting point has been agreed"},
+            {"label": "Go bag or evacuation kit is ready"},
+            {"label": "Essential medicines can be taken quickly"},
+            {"label": "Important documents or copies are accessible"},
+            {"label": "Children and dependants have a clear evacuation routine"},
+            {"label": "Pet transport and essential pet supplies are planned"},
+            {"label": "A contact outside the household knows the emergency plan"},
+        ],
+    },
+}
+
+
+class PlanTemplateCreate(BaseModel):
+    household_id: UUID
+    template_id: str = Field(min_length=1, max_length=64)
+
+
+class PlanReview(BaseModel):
+    expected_revision: int = Field(ge=1)
+    reviewed_on: date | None = None
+
+
+class ChecklistToggle(BaseModel):
+    expected_revision: int = Field(ge=1)
+    completed: bool | None = None
+
 
 def _translate_error(exc: Exception) -> HTTPException:
     if isinstance(exc, NotFoundError):
@@ -21,6 +92,46 @@ def _translate_error(exc: Exception) -> HTTPException:
     if isinstance(exc, ConflictError):
         return HTTPException(status_code=409, detail=str(exc))
     return HTTPException(status_code=500, detail="Unexpected server error")
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+@router.get("/templates")
+def list_plan_templates(principal: PrincipalDep) -> list[dict]:
+    del principal
+    return [
+        {
+            "id": key,
+            "name": value["name"],
+            "plan_type": value["plan_type"],
+            "description": value["description"],
+        }
+        for key, value in PLAN_TEMPLATES.items()
+    ]
+
+
+@router.post("/from-template", response_model=PlanRead, status_code=status.HTTP_201_CREATED)
+def create_plan_from_template(
+    payload: PlanTemplateCreate,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    template = PLAN_TEMPLATES.get(payload.template_id)
+    if template is None:
+        raise HTTPException(status_code=404, detail="Plan template not found")
+    try:
+        return PlanService(session).create(
+            PlanCreate(household_id=payload.household_id, **template)
+        )
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
 
 
 @router.post("", response_model=PlanRead, status_code=status.HTTP_201_CREATED)
@@ -72,6 +183,77 @@ def update_plan(
     del principal
     try:
         return PlanService(session).update(plan_id, payload)
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
+
+
+@router.post("/{plan_id}/review", response_model=PlanRead)
+def mark_plan_reviewed(
+    plan_id: UUID,
+    payload: PlanReview,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    service = PlanService(session)
+    try:
+        plan = service.get(plan_id)
+        reviewed = payload.reviewed_on or date.today()
+        next_review = (
+            _add_months(reviewed, plan.review_interval_months)
+            if plan.review_interval_months
+            else None
+        )
+        return service.update(
+            plan_id,
+            PlanUpdate(
+                expected_revision=payload.expected_revision,
+                last_reviewed_at=datetime.combine(reviewed, datetime.min.time()),
+                next_review_at=next_review,
+            ),
+        )
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
+
+
+@router.post("/{plan_id}/checklist/{item_id}/toggle", response_model=PlanRead)
+def toggle_plan_checklist_item(
+    plan_id: UUID,
+    item_id: str,
+    payload: ChecklistToggle,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    service = PlanService(session)
+    try:
+        plan = service.get(plan_id)
+        if plan.revision != payload.expected_revision:
+            raise ConflictError(
+                f"Revision mismatch: expected {payload.expected_revision}, current {plan.revision}"
+            )
+        checklist = [dict(item) for item in plan.checklist]
+        found = False
+        for item in checklist:
+            if item.get("id") != item_id:
+                continue
+            completed = (
+                not bool(item.get("completed"))
+                if payload.completed is None
+                else payload.completed
+            )
+            item["completed"] = completed
+            item["last_confirmed_at"] = (
+                datetime.now().isoformat() if completed else None
+            )
+            found = True
+            break
+        if not found:
+            raise NotFoundError("Checklist item not found")
+        return service.update(
+            plan_id,
+            PlanUpdate(expected_revision=plan.revision, checklist=checklist),
+        )
     except (NotFoundError, ConflictError) as exc:
         raise _translate_error(exc) from exc
 
