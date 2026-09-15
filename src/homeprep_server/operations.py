@@ -16,8 +16,12 @@ class ShoppingItemModel(Base):
     __tablename__ = "shopping_items"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    # The production schema owns the household lookup index through Alembic.
+    # Do not also declare it here: the model can be imported through multiple
+    # API paths during test/bootstrap metadata construction, and the duplicate
+    # implicit index name causes SQLite create_all() to emit it twice.
     household_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("households.id"), index=True, nullable=False
+        String(36), ForeignKey("households.id"), nullable=False
     )
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     quantity: Mapped[float] = mapped_column(nullable=False, default=1.0)
