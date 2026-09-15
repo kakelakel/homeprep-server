@@ -7,8 +7,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from homeprep_server.repositories import (
+    AssetRepository,
+    ContainerRepository,
     HouseholdRepository,
     InventoryRepository,
+    PlanRepository,
     TargetRepository,
     TaskRepository,
 )
@@ -249,10 +252,48 @@ def task_status(task, today: date | None = None) -> str:
     return "ok"
 
 
+def _area(
+    key: str,
+    label: str,
+    *,
+    configured: bool,
+    score: int | None,
+    attention: int,
+    tracked: int,
+    detail: str,
+) -> dict[str, Any]:
+    if not configured:
+        return {
+            "key": key,
+            "label": label,
+            "configured": False,
+            "score": None,
+            "status": "not_configured",
+            "attention": 0,
+            "tracked": 0,
+            "detail": "Not configured",
+        }
+    resolved = max(0, min(100, int(score or 0)))
+    status = "ready" if resolved >= 100 else "attention" if resolved > 0 else "critical"
+    return {
+        "key": key,
+        "label": label,
+        "configured": True,
+        "score": resolved,
+        "status": status,
+        "attention": attention,
+        "tracked": tracked,
+        "detail": detail,
+    }
+
+
 class ReadinessService:
     def __init__(self, session: Session):
         self.households = HouseholdRepository(session)
         self.inventory = InventoryRepository(session)
+        self.containers = ContainerRepository(session)
+        self.assets = AssetRepository(session)
+        self.plans = PlanRepository(session)
         self.targets = TargetRepository(session)
         self.tasks = TaskRepository(session)
 
@@ -260,6 +301,7 @@ class ReadinessService:
         household_key = str(household_id)
         if self.households.get(household_key) is None:
             raise NotFoundError("Household not found")
+        today = date.today()
         inventory_models = self.inventory.list_for_household(household_key)
         inventory = [
             {
@@ -314,8 +356,9 @@ class ReadinessService:
             "disabled": 0,
         }
         task_rows = []
-        for task in self.tasks.list_for_household(household_key):
-            status = task_status(task)
+        all_tasks = list(self.tasks.list_for_household(household_key))
+        for task in all_tasks:
+            status = task_status(task, today)
             task_counts[status] += 1
             task_rows.append(
                 {
@@ -333,15 +376,155 @@ class ReadinessService:
         else:
             task_overall = "ok"
 
-        total_targets = len(evaluations)
-        score = round(100 * target_counts["met"] / total_targets) if total_targets else None
-        overall = "critical" if "critical" in {target_status, task_overall} else (
-            "attention" if "attention" in {target_status, task_overall} else "ok"
+        containers = list(self.containers.list_for_household(household_key))
+        assets = list(self.assets.list_for_household(household_key))
+        active_plans = [
+            plan for plan in self.plans.list_for_household(household_key) if plan.enabled
+        ]
+        active_tasks = [task for task in all_tasks if task.enabled]
+
+        inventory_attention = sum(
+            1
+            for item in inventory_models
+            if (item.expires_at is not None and item.expires_at < today)
+            or (item.next_check_at is not None and item.next_check_at <= today)
         )
+        inventory_score = (
+            round(100 * (len(inventory_models) - inventory_attention) / len(inventory_models))
+            if inventory_models
+            else None
+        )
+
+        container_attention = 0
+        for container in containers:
+            assigned = [item for item in inventory_models if item.container_id == container.id]
+            due = container.next_check_at is not None and container.next_check_at.date() <= today
+            contents_need_attention = any(
+                (item.expires_at is not None and item.expires_at < today)
+                or (item.next_check_at is not None and item.next_check_at <= today)
+                for item in assigned
+            )
+            if due or contents_need_attention:
+                container_attention += 1
+        container_score = (
+            round(100 * (len(containers) - container_attention) / len(containers))
+            if containers
+            else None
+        )
+
+        task_attention = sum(
+            1
+            for task in active_tasks
+            if task_status(task, today) in {"overdue", "due", "upcoming", "unscheduled"}
+        )
+        task_score = (
+            round(100 * (len(active_tasks) - task_attention) / len(active_tasks))
+            if active_tasks
+            else None
+        )
+
+        asset_attention = sum(
+            1
+            for asset in assets
+            if asset.next_check_at is not None and asset.next_check_at.date() <= today
+        )
+        asset_score = (
+            round(100 * (len(assets) - asset_attention) / len(assets)) if assets else None
+        )
+
+        plan_attention = 0
+        for plan in active_plans:
+            checklist = plan.checklist or []
+            complete = bool(checklist) and all(item.get("completed") for item in checklist)
+            review_due = plan.next_review_at is not None and plan.next_review_at <= today
+            if not complete or review_due:
+                plan_attention += 1
+        plan_score = (
+            round(100 * (len(active_plans) - plan_attention) / len(active_plans))
+            if active_plans
+            else None
+        )
+
+        total_targets = len(evaluations)
+        target_score = (
+            round(100 * target_counts["met"] / total_targets) if total_targets else None
+        )
+        areas = [
+            _area(
+                "inventory",
+                "Inventory",
+                configured=bool(inventory_models),
+                score=inventory_score,
+                attention=inventory_attention,
+                tracked=len(inventory_models),
+                detail=f"{inventory_attention} need attention",
+            ),
+            _area(
+                "containers",
+                "Containers",
+                configured=bool(containers),
+                score=container_score,
+                attention=container_attention,
+                tracked=len(containers),
+                detail=f"{container_attention} need attention",
+            ),
+            _area(
+                "tasks",
+                "Tasks",
+                configured=bool(active_tasks),
+                score=task_score,
+                attention=task_attention,
+                tracked=len(active_tasks),
+                detail=f"{task_attention} due / upcoming",
+            ),
+            _area(
+                "assets",
+                "Assets",
+                configured=bool(assets),
+                score=asset_score,
+                attention=asset_attention,
+                tracked=len(assets),
+                detail=f"{asset_attention} checks due",
+            ),
+            _area(
+                "plans",
+                "Plans",
+                configured=bool(active_plans),
+                score=plan_score,
+                attention=plan_attention,
+                tracked=len(active_plans),
+                detail=f"{plan_attention} need attention",
+            ),
+            _area(
+                "targets",
+                "Targets",
+                configured=bool(evaluations),
+                score=target_score,
+                attention=total_targets - target_counts["met"],
+                tracked=total_targets,
+                detail=f"{total_targets - target_counts['met']} not fully ready",
+            ),
+        ]
+        configured_scores = [area["score"] for area in areas if area["configured"]]
+        score = (
+            round(sum(configured_scores) / len(configured_scores))
+            if configured_scores
+            else None
+        )
+        if score is None:
+            overall = "not_configured"
+        elif score >= 100:
+            overall = "ok"
+        elif any(area["status"] == "critical" for area in areas if area["configured"]):
+            overall = "critical"
+        else:
+            overall = "attention"
+
         return {
             "status": overall,
             "score": score,
             "inventory_items": len(inventory_models),
+            "areas": areas,
             "targets": {"status": target_status, "total": total_targets, **target_counts},
             "target_evaluations": evaluations,
             "tasks": {"status": task_overall, "total": len(task_rows), **task_counts},
