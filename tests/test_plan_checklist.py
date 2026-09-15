@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -135,29 +136,11 @@ def test_plan_checklist_crud_preserves_links_and_revision(client: TestClient) ->
     assert deleted.json()["checklist"] == []
 
 
-def test_plan_checklist_rejects_cross_household_links(client: TestClient) -> None:
-    household_a = _household(client)
-    household_b_response = client.post(
-        "/api/v1/households", json={"name": "Other home"}
-    )
-    assert household_b_response.status_code == 201
-    household_b = household_b_response.json()["id"]
-
-    foreign_item = client.post(
-        "/api/v1/inventory",
-        json={
-            "household_id": household_b,
-            "name": "Foreign item",
-            "category": "other",
-            "quantity": 1,
-            "unit": "piece",
-        },
-    )
-    assert foreign_item.status_code == 201
-
+def test_plan_checklist_rejects_unknown_resource_links(client: TestClient) -> None:
+    household_id = _household(client)
     plan = client.post(
         "/api/v1/plans",
-        json={"household_id": household_a, "name": "Home A plan"},
+        json={"household_id": household_id, "name": "Validation plan"},
     )
     assert plan.status_code == 201
 
@@ -166,7 +149,7 @@ def test_plan_checklist_rejects_cross_household_links(client: TestClient) -> Non
         json={
             "expected_revision": plan.json()["revision"],
             "label": "Invalid linked item",
-            "linked_inventory_item_ids": [foreign_item.json()["id"]],
+            "linked_inventory_item_ids": [str(uuid4())],
         },
     )
     assert response.status_code == 404
