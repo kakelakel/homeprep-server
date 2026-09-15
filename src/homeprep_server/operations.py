@@ -4,41 +4,18 @@ from collections.abc import Sequence
 from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, func, select
+from sqlalchemy import DateTime, ForeignKey, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from homeprep_server.models import Base, utc_now
 from homeprep_server.repositories import HouseholdRepository, InventoryRepository, TaskRepository
 from homeprep_server.services import ConflictError, NotFoundError
+from homeprep_server.shopping_contract import ShoppingContractModel
 
-
-class ShoppingItemModel(Base):
-    __tablename__ = "shopping_items"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    # The production schema owns the household lookup index through Alembic.
-    # Do not also declare it here: the model can be imported through multiple
-    # API paths during test/bootstrap metadata construction, and the duplicate
-    # implicit index name causes SQLite create_all() to emit it twice.
-    household_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("households.id"), nullable=False
-    )
-    name: Mapped[str] = mapped_column(String(160), nullable=False)
-    quantity: Mapped[float] = mapped_column(nullable=False, default=1.0)
-    unit: Mapped[str] = mapped_column(String(32), nullable=False, default="pcs")
-    category: Mapped[str] = mapped_column(String(64), nullable=False, default="other")
-    source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
-    source_inventory_item_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
-    completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    completed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+# Keep the operations service compatibility layer on the canonical shopping
+# mapper. Defining a second mapper for the same shopping_items table made
+# SQLAlchemy metadata accumulate duplicate implicit indexes during bootstrap.
+ShoppingItemModel = ShoppingContractModel
 
 
 class NotificationModel(Base):
@@ -65,6 +42,13 @@ class NotificationModel(Base):
 
 
 class ShoppingRepository:
+    """Compatibility repository over the canonical shopping mapper.
+
+    New API code uses ``ShoppingContractService`` directly. This repository is
+    retained for internal notification/legacy callers until those call sites
+    are fully removed, but it deliberately shares the canonical table mapper.
+    """
+
     def __init__(self, session: Session):
         self.session = session
 
@@ -90,7 +74,7 @@ class ShoppingRepository:
                 ShoppingItemModel.deleted_at.is_(None),
             )
             .order_by(
-                ShoppingItemModel.completed.asc(),
+                (ShoppingItemModel.status != "pending").asc(),
                 ShoppingItemModel.created_at.desc(),
                 ShoppingItemModel.id.asc(),
             )
@@ -101,8 +85,9 @@ class ShoppingRepository:
             self.session.scalar(
                 select(ShoppingItemModel.id).where(
                     ShoppingItemModel.household_id == household_id,
-                    ShoppingItemModel.source == "expired_inventory",
-                    ShoppingItemModel.source_inventory_item_id == inventory_item_id,
+                    ShoppingItemModel.source_type == "inventory_expired",
+                    ShoppingItemModel.source_id == inventory_item_id,
+                    ShoppingItemModel.deleted_at.is_(None),
                 )
             )
             is not None
@@ -133,6 +118,13 @@ class NotificationRepository:
 
 
 class ShoppingService:
+    """Legacy compatibility facade.
+
+    The public shopping API uses ``ShoppingContractService``. Keep this facade
+    coherent with schema v1 for older internal callers while avoiding a second
+    SQLAlchemy model for the same table.
+    """
+
     def __init__(self, session: Session):
         self.session = session
         self.repository = ShoppingRepository(session)
@@ -153,7 +145,7 @@ class ShoppingService:
                 continue
             if self.repository.source_exists(key, inventory_item.id):
                 continue
-            note = f"Replacement for expired inventory item ({inventory_item.expires_at})."
+            reason = f"Automatically added · Expired {inventory_item.expires_at.isoformat()}"
             self.repository.add(
                 ShoppingItemModel(
                     id=str(uuid4()),
@@ -162,9 +154,15 @@ class ShoppingService:
                     quantity=inventory_item.quantity,
                     unit=inventory_item.unit,
                     category=inventory_item.category,
+                    container_id=inventory_item.container_id,
+                    source_type="inventory_expired",
+                    source_id=inventory_item.id,
+                    reason=reason,
+                    status="pending",
+                    notes=None,
                     source="expired_inventory",
                     source_inventory_item_id=inventory_item.id,
-                    notes=note,
+                    completed=False,
                 )
             )
             created += 1
@@ -195,7 +193,10 @@ class ShoppingService:
             quantity=quantity,
             unit=unit,
             category=category,
+            source_type="manual",
+            status="pending",
             source="manual",
+            completed=False,
             notes=notes,
         )
         self.repository.add(item)
