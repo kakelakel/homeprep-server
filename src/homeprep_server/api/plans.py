@@ -105,6 +105,24 @@ class ChecklistToggle(BaseModel):
     completed: bool | None = None
 
 
+class ChecklistCreate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    label: str = Field(min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    linked_inventory_item_ids: list[UUID] = Field(default_factory=list)
+    linked_container_ids: list[UUID] = Field(default_factory=list)
+    linked_asset_ids: list[UUID] = Field(default_factory=list)
+
+
+class ChecklistUpdate(BaseModel):
+    expected_revision: int = Field(ge=1)
+    label: str | None = Field(default=None, min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=4000)
+    linked_inventory_item_ids: list[UUID] | None = None
+    linked_container_ids: list[UUID] | None = None
+    linked_asset_ids: list[UUID] | None = None
+
+
 def _translate_error(exc: Exception) -> HTTPException:
     if isinstance(exc, NotFoundError):
         return HTTPException(status_code=404, detail=str(exc))
@@ -119,6 +137,17 @@ def _add_months(value: date, months: int) -> date:
     month = month_index % 12 + 1
     day = min(value.day, monthrange(year, month)[1])
     return date(year, month, day)
+
+
+def _require_revision(plan, expected_revision: int) -> None:
+    if plan.revision != expected_revision:
+        raise ConflictError(
+            f"Revision mismatch: expected {expected_revision}, current {plan.revision}"
+        )
+
+
+def _checklist_copy(plan) -> list[dict]:
+    return [dict(item) for item in plan.checklist]
 
 
 @router.get("/templates")
@@ -221,6 +250,7 @@ def mark_plan_reviewed(
     service = PlanService(session)
     try:
         plan = service.get(plan_id)
+        _require_revision(plan, payload.expected_revision)
         reviewed = payload.reviewed_on or date.today()
         next_review = (
             _add_months(reviewed, plan.review_interval_months)
@@ -230,10 +260,98 @@ def mark_plan_reviewed(
         return service.update(
             plan_id,
             PlanUpdate(
-                expected_revision=payload.expected_revision,
+                expected_revision=plan.revision,
                 last_reviewed_at=datetime.combine(reviewed, datetime.min.time()),
                 next_review_at=next_review,
             ),
+        )
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
+
+
+@router.post("/{plan_id}/checklist", response_model=PlanRead)
+def add_plan_checklist_item(
+    plan_id: UUID,
+    payload: ChecklistCreate,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    service = PlanService(session)
+    try:
+        plan = service.get(plan_id)
+        _require_revision(plan, payload.expected_revision)
+        checklist = _checklist_copy(plan)
+        checklist.append(
+            {
+                "label": payload.label,
+                "description": payload.description,
+                "completed": False,
+                "linked_inventory_item_ids": payload.linked_inventory_item_ids,
+                "linked_container_ids": payload.linked_container_ids,
+                "linked_asset_ids": payload.linked_asset_ids,
+            }
+        )
+        return service.update(
+            plan_id,
+            PlanUpdate(expected_revision=plan.revision, checklist=checklist),
+        )
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
+
+
+@router.patch("/{plan_id}/checklist/{item_id}", response_model=PlanRead)
+def update_plan_checklist_item(
+    plan_id: UUID,
+    item_id: str,
+    payload: ChecklistUpdate,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    service = PlanService(session)
+    try:
+        plan = service.get(plan_id)
+        _require_revision(plan, payload.expected_revision)
+        checklist = _checklist_copy(plan)
+        changes = payload.model_dump(exclude_unset=True, exclude={"expected_revision"})
+        found = False
+        for item in checklist:
+            if item.get("id") != item_id:
+                continue
+            for key, value in changes.items():
+                item[key] = value
+            found = True
+            break
+        if not found:
+            raise NotFoundError("Checklist item not found")
+        return service.update(
+            plan_id,
+            PlanUpdate(expected_revision=plan.revision, checklist=checklist),
+        )
+    except (NotFoundError, ConflictError) as exc:
+        raise _translate_error(exc) from exc
+
+
+@router.delete("/{plan_id}/checklist/{item_id}", response_model=PlanRead)
+def delete_plan_checklist_item(
+    plan_id: UUID,
+    item_id: str,
+    expected_revision: ExpectedRevision,
+    session: SessionDep,
+    principal: WritePrincipalDep,
+) -> PlanRead:
+    del principal
+    service = PlanService(session)
+    try:
+        plan = service.get(plan_id)
+        _require_revision(plan, expected_revision)
+        checklist = [item for item in _checklist_copy(plan) if item.get("id") != item_id]
+        if len(checklist) == len(plan.checklist):
+            raise NotFoundError("Checklist item not found")
+        return service.update(
+            plan_id,
+            PlanUpdate(expected_revision=plan.revision, checklist=checklist),
         )
     except (NotFoundError, ConflictError) as exc:
         raise _translate_error(exc) from exc
@@ -251,12 +369,8 @@ def toggle_plan_checklist_item(
     service = PlanService(session)
     try:
         plan = service.get(plan_id)
-        if plan.revision != payload.expected_revision:
-            raise ConflictError(
-                f"Revision mismatch: expected {payload.expected_revision}, "
-                f"current {plan.revision}"
-            )
-        checklist = [dict(item) for item in plan.checklist]
+        _require_revision(plan, payload.expected_revision)
+        checklist = _checklist_copy(plan)
         found = False
         for item in checklist:
             if item.get("id") != item_id:
