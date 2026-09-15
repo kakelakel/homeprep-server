@@ -16,6 +16,7 @@ from homeprep_server.api.guidance import router as guidance_router
 from homeprep_server.api.household_profile import router as household_profile_router
 from homeprep_server.api.households import router as households_router
 from homeprep_server.api.inventory import router as inventory_router
+from homeprep_server.api.media import router as media_router
 from homeprep_server.api.notifications import router as notifications_router
 from homeprep_server.api.pairing import router as pairing_router
 from homeprep_server.api.plans import router as plans_router
@@ -33,6 +34,7 @@ from homeprep_server.core.web_security import WebSecurityMiddleware
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Path(settings.data_dir).mkdir(parents=True, exist_ok=True)
+    (Path(settings.data_dir) / "media").mkdir(parents=True, exist_ok=True)
     yield
 
 
@@ -64,6 +66,7 @@ app.include_router(readiness_router)
 app.include_router(shopping_router)
 app.include_router(notifications_router)
 app.include_router(inventory_router)
+app.include_router(media_router)
 
 if settings.web_dir.exists():
     app.mount("/", StaticFiles(directory=settings.web_dir, html=True), name="web")
