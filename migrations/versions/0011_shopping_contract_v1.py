@@ -22,8 +22,12 @@ def upgrade() -> None:
         batch_op.add_column(sa.Column("source_id", sa.String(length=36), nullable=True))
         batch_op.add_column(sa.Column("reason", sa.Text(), nullable=True))
         batch_op.add_column(sa.Column("status", sa.String(length=16), nullable=True))
-        batch_op.add_column(sa.Column("purchased_at", sa.DateTime(timezone=True), nullable=True))
-        batch_op.add_column(sa.Column("ignored_at", sa.DateTime(timezone=True), nullable=True))
+        batch_op.add_column(
+            sa.Column("purchased_at", sa.DateTime(timezone=True), nullable=True)
+        )
+        batch_op.add_column(
+            sa.Column("ignored_at", sa.DateTime(timezone=True), nullable=True)
+        )
 
     op.execute(
         """
@@ -46,7 +50,11 @@ def upgrade() -> None:
     with op.batch_alter_table("shopping_items") as batch_op:
         batch_op.alter_column("source_type", nullable=False, server_default="manual")
         batch_op.alter_column("status", nullable=False, server_default="pending")
-        batch_op.create_index("ix_shopping_items_source", ["household_id", "source_type", "source_id"], unique=False)
+        batch_op.create_index(
+            "ix_shopping_items_source",
+            ["household_id", "source_type", "source_id"],
+            unique=False,
+        )
 
 
 def downgrade() -> None:
