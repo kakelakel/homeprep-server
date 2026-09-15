@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, select
 from sqlalchemy.orm import Mapped, Session, mapped_column
 
 from homeprep_server.models import Base, utc_now
-from homeprep_server.repositories import ContainerRepository, HouseholdRepository
+from homeprep_server.repositories import (
+    ContainerRepository,
+    HouseholdRepository,
+    InventoryRepository,
+)
 from homeprep_server.services import ConflictError, NotFoundError
 
 SHOPPING_STATUSES = {"pending", "purchased", "ignored"}
@@ -23,12 +27,7 @@ SHOPPING_SOURCES = {
 
 
 class ShoppingContractModel(Base):
-    """Canonical shopping mapper matching Home Assistant schema v1.
-
-    The legacy mapper in operations.py remains during the upgrade window so old
-    databases can be migrated safely. ``extend_existing`` maps the new canonical
-    fields onto the same table without changing the public HomePrep contract.
-    """
+    """Canonical shopping mapper matching Home Assistant schema v1."""
 
     __tablename__ = "shopping_items"
     __table_args__ = {"extend_existing": True}
@@ -55,8 +54,7 @@ class ShoppingContractModel(Base):
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Legacy columns remain mapped during the transition so writes stay readable
-    # by an older binary if an operator rolls back the executable.
+    # Legacy fields stay coherent during the upgrade window.
     source: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
     source_inventory_item_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     completed: Mapped[bool] = mapped_column(nullable=False, default=False)
@@ -68,6 +66,7 @@ class ShoppingContractService:
         self.session = session
         self.households = HouseholdRepository(session)
         self.containers = ContainerRepository(session)
+        self.inventory = InventoryRepository(session)
 
     def _require_household(self, household_id: str) -> None:
         if self.households.get(household_id) is None:
@@ -81,9 +80,57 @@ class ShoppingContractService:
             raise NotFoundError("Container not found in this household")
         return container.id
 
+    def _source_exists(self, household_id: str, source_type: str, source_id: str) -> bool:
+        return (
+            self.session.scalar(
+                select(ShoppingContractModel.id).where(
+                    ShoppingContractModel.household_id == household_id,
+                    ShoppingContractModel.source_type == source_type,
+                    ShoppingContractModel.source_id == source_id,
+                    ShoppingContractModel.deleted_at.is_(None),
+                )
+            )
+            is not None
+        )
+
+    def sync_expired_inventory(self, household_id: UUID) -> int:
+        key = str(household_id)
+        self._require_household(key)
+        today = date.today()
+        created = 0
+        for inventory_item in self.inventory.list_for_household(key):
+            if inventory_item.expires_at is None or inventory_item.expires_at >= today:
+                continue
+            if self._source_exists(key, "inventory_expired", inventory_item.id):
+                continue
+            reason = f"Automatically added · Expired {inventory_item.expires_at.isoformat()}"
+            item = ShoppingContractModel(
+                id=str(uuid4()),
+                household_id=key,
+                name=inventory_item.name,
+                quantity=inventory_item.quantity,
+                unit=inventory_item.unit,
+                category=inventory_item.category,
+                container_id=inventory_item.container_id,
+                source_type="inventory_expired",
+                source_id=inventory_item.id,
+                reason=reason,
+                status="pending",
+                notes=None,
+                source="expired_inventory",
+                source_inventory_item_id=inventory_item.id,
+                completed=False,
+            )
+            self.session.add(item)
+            created += 1
+        if created:
+            self.session.commit()
+        return created
+
     def list_for_household(self, household_id: UUID) -> Sequence[ShoppingContractModel]:
         key = str(household_id)
         self._require_household(key)
+        self.sync_expired_inventory(household_id)
         return self.session.scalars(
             select(ShoppingContractModel)
             .where(
@@ -146,9 +193,10 @@ class ShoppingContractService:
             notes=notes,
             purchased_at=now if status == "purchased" else None,
             ignored_at=now if status == "ignored" else None,
-            # Keep legacy fields coherent.
             source="expired_inventory" if source_type == "inventory_expired" else source_type,
-            source_inventory_item_id=str(source_id) if source_type == "inventory_expired" and source_id else None,
+            source_inventory_item_id=(
+                str(source_id) if source_type == "inventory_expired" and source_id else None
+            ),
             completed=status == "purchased",
             completed_at=now if status == "purchased" else None,
         )
@@ -157,7 +205,13 @@ class ShoppingContractService:
         self.session.refresh(item)
         return item
 
-    def update(self, item_id: UUID, *, expected_revision: int, changes: dict) -> ShoppingContractModel:
+    def update(
+        self,
+        item_id: UUID,
+        *,
+        expected_revision: int,
+        changes: dict,
+    ) -> ShoppingContractModel:
         item = self.get(item_id)
         if item.revision != expected_revision:
             raise ConflictError(
@@ -171,20 +225,25 @@ class ShoppingContractService:
         if "source_type" in changes and changes["source_type"] not in SHOPPING_SOURCES:
             raise ConflictError(f"Unsupported shopping source: {changes['source_type']}")
         if "status" in changes:
-            status = changes["status"]
-            if status not in SHOPPING_STATUSES:
-                raise ConflictError(f"Unsupported shopping status: {status}")
+            shopping_status = changes["status"]
+            if shopping_status not in SHOPPING_STATUSES:
+                raise ConflictError(f"Unsupported shopping status: {shopping_status}")
             now = utc_now()
-            changes["purchased_at"] = now if status == "purchased" else None
-            changes["ignored_at"] = now if status == "ignored" else None
-            item.completed = status == "purchased"
-            item.completed_at = now if status == "purchased" else None
+            changes["purchased_at"] = now if shopping_status == "purchased" else None
+            changes["ignored_at"] = now if shopping_status == "ignored" else None
+            item.completed = shopping_status == "purchased"
+            item.completed_at = now if shopping_status == "purchased" else None
         if "source_type" in changes:
-            item.source = "expired_inventory" if changes["source_type"] == "inventory_expired" else changes["source_type"]
+            item.source = (
+                "expired_inventory"
+                if changes["source_type"] == "inventory_expired"
+                else changes["source_type"]
+            )
         if "source_id" in changes:
             item.source_inventory_item_id = (
                 str(changes["source_id"])
-                if changes.get("source_type", item.source_type) == "inventory_expired" and changes["source_id"]
+                if changes.get("source_type", item.source_type) == "inventory_expired"
+                and changes["source_id"]
                 else None
             )
             changes["source_id"] = str(changes["source_id"]) if changes["source_id"] else None
