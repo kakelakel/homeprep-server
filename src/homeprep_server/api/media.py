@@ -5,10 +5,9 @@ import binascii
 import json
 import secrets
 from pathlib import Path
-from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
