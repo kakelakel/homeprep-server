@@ -1,11 +1,13 @@
 """Contract tests for Home Assistant ↔ Server domain-language parity.
 
 The HA standalone integration is the canonical HomePrep domain contract. These tests
-make accidental field loss visible before sync work can ship.
+make accidental field loss or renaming visible before sync work can ship.
 """
 
 # ruff: noqa: I001
 
+from homeprep_server.api.household_profile import HouseholdProfileResponse
+from homeprep_server.api.shopping import ShoppingRead
 from homeprep_server.models import (
     AssetModel,
     ContainerModel,
@@ -18,10 +20,13 @@ from homeprep_server.schemas import (
     AssetRead,
     ContainerRead,
     InventoryRead,
+    PlanChecklistItem,
     PlanRead,
     TargetRead,
+    TargetRequirement,
     TaskRead,
 )
+from homeprep_server.shopping_contract import ShoppingContractModel
 
 
 HA_INVENTORY_FIELDS = {
@@ -127,6 +132,16 @@ HA_PLAN_FIELDS = {
     "revision",
     "schema_version",
 }
+HA_PLAN_CHECK_FIELDS = {
+    "id",
+    "label",
+    "description",
+    "completed",
+    "last_confirmed_at",
+    "linked_inventory_item_ids",
+    "linked_container_ids",
+    "linked_asset_ids",
+}
 HA_TARGET_FIELDS = {
     "id",
     "household_id",
@@ -150,6 +165,46 @@ HA_TARGET_FIELDS = {
     "created_at",
     "updated_at",
     "deleted_at",
+    "revision",
+    "schema_version",
+}
+HA_TARGET_REQUIREMENT_FIELDS = {
+    "id",
+    "label",
+    "description",
+    "matcher",
+    "required",
+}
+HA_SHOPPING_FIELDS = {
+    "id",
+    "household_id",
+    "name",
+    "quantity",
+    "unit",
+    "category",
+    "container_id",
+    "source_type",
+    "source_id",
+    "reason",
+    "status",
+    "notes",
+    "purchased_at",
+    "ignored_at",
+    "created_at",
+    "updated_at",
+    "deleted_at",
+    "revision",
+    "schema_version",
+}
+HA_HOUSEHOLD_PROFILE_FIELDS = {
+    "id",
+    "country_code",
+    "adults",
+    "children",
+    "pets",
+    "preparedness_days",
+    "created_at",
+    "updated_at",
     "revision",
     "schema_version",
 }
@@ -190,10 +245,26 @@ def test_task_contract_matches_ha_schema_v5() -> None:
 def test_plan_contract_matches_ha_schema_v3() -> None:
     assert model_columns(PlanModel) == HA_PLAN_FIELDS
     assert schema_fields(PlanRead) == HA_PLAN_FIELDS
+    assert schema_fields(PlanChecklistItem) == HA_PLAN_CHECK_FIELDS
     assert PlanModel.__table__.c.schema_version.default.arg == 3
 
 
 def test_target_contract_matches_ha_schema_v4() -> None:
     assert model_columns(TargetModel) == HA_TARGET_FIELDS
     assert schema_fields(TargetRead) == HA_TARGET_FIELDS
+    assert schema_fields(TargetRequirement) == HA_TARGET_REQUIREMENT_FIELDS
     assert TargetModel.__table__.c.schema_version.default.arg == 4
+
+
+def test_shopping_api_contract_matches_ha_schema_v1() -> None:
+    # The SQL mapper temporarily retains legacy columns for migration safety, but
+    # canonical API/sync payload names must be exactly the HA shopping contract.
+    assert HA_SHOPPING_FIELDS <= model_columns(ShoppingContractModel)
+    assert schema_fields(ShoppingRead) == HA_SHOPPING_FIELDS
+    assert ShoppingContractModel.__table__.c.schema_version.default.arg == 1
+
+
+def test_household_profile_api_contract_matches_ha_schema_v2() -> None:
+    # The Server stores the profile UUID in its household_id database key, while
+    # the public preparedness contract deliberately exposes HA's canonical `id`.
+    assert schema_fields(HouseholdProfileResponse) == HA_HOUSEHOLD_PROFILE_FIELDS
