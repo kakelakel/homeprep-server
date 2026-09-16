@@ -10,8 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from homeprep_server import manager
-from homeprep_server import updater
+from homeprep_server import manager, updater
 
 
 def restore_local_backup(archive_path: Path, *, restart_service: bool) -> str:
