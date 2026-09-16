@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from homeprep_server import manager
+from homeprep_server import updater
 
 
 def restore_local_backup(archive_path: Path, *, restart_service: bool) -> str:
@@ -51,8 +52,17 @@ def restore_local_backup(archive_path: Path, *, restart_service: bool) -> str:
     return "restore_failed"
 
 
+def check_for_updates(app: manager.ManagerApp) -> None:
+    updater.check_for_updates(
+        app,
+        release_api=manager.RELEASE_API,
+        installed_version=manager.__version__,
+    )
+
+
 def main() -> None:
     manager._restore_local_backup = restore_local_backup
+    manager.ManagerApp.check_for_updates = check_for_updates
     manager.main()
 
 
