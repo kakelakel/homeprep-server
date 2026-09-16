@@ -48,7 +48,7 @@ def test_profile_guidance_targets_and_readiness(client: TestClient) -> None:
     )
     assert profile.status_code == 200
     assert profile.json()["id"] == household_id
-    assert profile.json()["household_id"] == household_id
+    assert "household_id" not in profile.json()
     assert profile.json()["country_code"] == "SE"
     assert profile.json()["schema_version"] == 2
 
