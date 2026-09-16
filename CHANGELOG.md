@@ -24,8 +24,8 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Owner-managed client listing, issuance and revocation.
 - HA-oriented one-time pairing with 10-minute expiry, single-use exchange and `/api/v1/context` verification.
 - Canonical Inventory taxonomy API at `/api/v1/taxonomy/inventory`, mirroring HA categories, item types, units and category form metadata.
-- HA ↔ Server schema-contract regression coverage for Inventory, Containers, Assets, Tasks, Plans and Targets so accidental field loss is caught before migration/sync work ships.
-- Household profile responses expose the HA-compatible stable `id` while retaining `household_id` for existing Server clients.
+- HA ↔ Server schema-contract regression coverage for Inventory, Containers, Assets, Tasks, Plans, Targets, Shopping, Household profile and nested Plan/Target structures so accidental field loss or renaming is caught before migration/sync work ships.
+- Household profile preparedness payloads now use HA's canonical stable `id` field exactly; the Server may still use `household_id` internally as its one-to-one database key.
 - Docker reference deployment and CI for Python/API, Web and Docker.
 - Native Windows installer, Windows Service and HomePrep Server Manager.
 - Windows Manager controls for service lifecycle, port, Local/LAN bind, data folder and Windows Services.
@@ -33,8 +33,10 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - Pre-restore safety backups and backup → mutate → restore regression coverage.
 - Daily/Weekly/Off backup scheduler with retention.
 - Windows Manager backup/schedule/retention/restore controls.
-- Windows Manager **Check for updates** using GitHub Releases.
+- Windows Manager **Check for updates** now downloads the published `HomePrep-Setup.exe`, verifies its GitHub-provided SHA-256 digest when available, launches the installer elevated and hands the upgrade to the existing data-preserving installer flow.
 - Canonical HomePrep icon/logo branding in Web, Windows executables and the Windows installer wizard.
+- HA-style grouped Web navigation with desktop hover-open, click/tap fallback, outside-click/Escape close, animated dropdowns and active-group feedback.
+- Overview readiness cards and attention-queue entries provide direct navigation to the corresponding preparedness area.
 - Printable/offline preparedness exports are now an explicit roadmap requirement for Server/Web resilience.
 
 ### Changed
@@ -53,11 +55,10 @@ All notable user-facing and project-level changes to HomePrep Server will be doc
 - HomePrep Server remains a capability layer rather than a replacement for Home Assistant standalone operation.
 - MVP remains one active Household per Server installation.
 - Backup/restore stays Server-core functionality, with Manager acting as administration UI rather than a separate implementation.
-- Update discovery remains user-facing only; unattended installer execution is deferred until authenticity, pre-upgrade backup and recovery behavior are proven.
+- Update installation remains explicitly user-confirmed; HomePrep does not perform unattended upgrades.
 
 ### Current execution order
-- Complete real-Windows validation of the current branded parity/recovery build.
+- Complete real-Windows validation of the current Web-polish/update build, including the first end-to-end Manager-driven update.
 - Continue the dedicated security/intrusion-resistance hardening pass (rate limits, CSRF/session/cookie policy, security headers, proxy/HTTPS behavior, audit/security events, request limits, supply-chain/release hardening).
-- Continue shared functionality parity where Server/Web still trails mature HA standalone workflows, especially Shopping/replacement lifecycle and migration-specific contracts.
-- Then complete explicit HA → Server import/migration and synchronization proof against the shared model.
+- Complete explicit HA → Server import/migration and synchronization proof against the now-guarded shared model.
 - Package the same Server runtime as a Home Assistant App/Add-on after client/server behavior is proven.
