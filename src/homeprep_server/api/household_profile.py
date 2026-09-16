@@ -1,32 +1,42 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from homeprep_server.api.client_auth import PrincipalDep, WritePrincipalDep
 from homeprep_server.database import get_session
 from homeprep_server.planning_services import HouseholdProfileService
-from homeprep_server.schemas import HouseholdProfileRead, HouseholdProfileUpsert
+from homeprep_server.schemas import HouseholdProfileUpsert
 from homeprep_server.services import ConflictError, NotFoundError
 
 router = APIRouter(prefix="/api/v1/household-profile", tags=["household-profile"])
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-class HouseholdProfileResponse(HouseholdProfileRead):
-    """Server profile response with the HA standalone stable ``id`` contract.
+class HouseholdProfileResponse(BaseModel):
+    """Canonical HomePrep household profile contract.
 
-    The database column is named ``household_id`` because the Server stores the
-    profile as a one-to-one household extension. HA standalone calls the same
-    stable UUID ``id``. Exposing both keeps existing Server/Web clients working
-    while making migration/sync lossless and explicit.
+    Home Assistant standalone calls the profile's stable UUID ``id``. The Server
+    stores that UUID in its one-to-one ``household_id`` database column, but the
+    public preparedness payload deliberately uses the HA field name so migration
+    and future sync can round-trip without aliases.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(validation_alias="household_id")
+    country_code: str | None
+    adults: int
+    children: int
+    pets: int
+    preparedness_days: int
+    created_at: datetime
+    updated_at: datetime
+    revision: int
+    schema_version: int
 
 
 def _translate_error(exc: Exception) -> HTTPException:
